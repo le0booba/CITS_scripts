@@ -9,8 +9,7 @@
 >> **OPTIONAL**
 >    - `PC_INVENT.ps1`
 ---
-### `NewPC.ps1` : <h5>
-> [!NOTE]
+> [!NOTE]<h5>
 >   - удаление "мусорного" софта Windows 10 / Windows 11
 >   - удаление OneDrive (отдельный скрипт)
 >   - переименовка ПК
