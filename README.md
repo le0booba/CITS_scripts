@@ -26,7 +26,7 @@ Thanks a lot to all of you !
 > Created By: Paul Black
 >
 > Created On: 03-Sep-2021
-##### ```UninstallOneDrive```
+##### `UninstallOneDrive`
 > AUTHOR asherto
 >
 > COMPANYNAME asheroto
