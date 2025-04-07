@@ -8,7 +8,6 @@
 > - **OPTIONAL**
 >
 >      - `PC_INVENT.ps1`
----
 > [!NOTE]
 >    - удаление "мусорного" софта Windows 10 / Windows 11
 >    - удаление OneDrive (отдельный скрипт)
