@@ -459,7 +459,7 @@ if (-not (Get-LocalUser -Name $userName -ErrorAction SilentlyContinue)) {
         catch {
             Write-Warning "Error adding 'helper' to group '$adminGroupName': $($_.Exception.Message)"
         }
-        Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value "helper password:`n$password`n`n"
+        Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value "helper password:`n$password`n"
         Write-Host " [ ** ] User 'helper' created" -ForegroundColor Green
     }
     catch {
