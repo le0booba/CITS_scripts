@@ -22,7 +22,7 @@
 ---
 #### Used projects :
 Thanks a lot to all of you !
-##### ```Turn Off ContentDeliveryManager Suggested Content```
+##### Turn Off ContentDeliveryManager Suggested Content
 > Created By: Paul Black
 >
 > Created On: 03-Sep-2021
