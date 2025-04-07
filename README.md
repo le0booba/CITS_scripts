@@ -1,7 +1,7 @@
 # CITS
 > > - **MAIN**
 >
->      - `7z_Assoc_OnlyWin10.bat` (скрипт автоматической ассоциации файлов с 7-Zip, работает только под Windows 10)
+>         - `7z_Assoc_OnlyWin10.bat` (скрипт автоматической ассоциации файлов с 7-Zip, работает только под Windows 10)
 >      - `NewPC.ps1` (основной скрипт)
 >      - `Start_PS.bat` (скрипт запуска PowerShell из текущей папки, с правами администратора и параметром -ExecutionPolicy Bypass)
 >      - `UninstallOneDrive.ps1`
