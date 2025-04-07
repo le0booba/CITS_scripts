@@ -26,6 +26,7 @@ Thanks a lot to all of you!
 > Created By: Paul Black
 >
 > Created On: 03-Sep-2021
+https://www.tenforums.com/tutorials/68217-turn-off-automatic-installation-suggested-apps-windows-10-a.HTML
 #### UninstallOneDrive
 > AUTHOR asherto
 >
