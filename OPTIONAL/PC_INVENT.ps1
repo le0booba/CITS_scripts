@@ -1,4 +1,4 @@
-﻿Clear-Host
+Clear-Host
 
 if ($PSScriptRoot) {
     $currentPath = $PSScriptRoot
@@ -39,7 +39,7 @@ if ($systemInfo) {
     $csvOutput += [PSCustomObject]@{ Property = 'Operating System'; Value = "$($systemInfo.Caption) $($systemInfo.OSArchitecture)" }
     $csvOutput += [PSCustomObject]@{ Property = 'OS Version'; Value = $systemInfo.Version }
     Try { $InstallDate = $systemInfo.InstallDate } Catch { $InstallDate = 'N/A' }
-    $csvOutput += [PSCustomObject]@{ Property = 'OS Installation Date'; Value = if ($InstallDate -is [datetime]) { $InstallDate.ToString('yyyy-MM-dd HH:mm:ss') } else { $InstallDate } }
+    $csvOutput += [PSCustomObject]@{ Property = 'OS Installation Date'; Value = if ($InstallDate -is [datetime]) { $InstallDate.ToString('dd/MM/yyyy HH:mm:ss') } else { $InstallDate } }
     $csvOutput += [PSCustomObject]@{ Property = 'OS Serial Number'; Value = $systemInfo.SerialNumber }
     $csvOutput += [PSCustomObject]@{ Property = 'Registered User'; Value = $systemInfo.RegisteredUser }
 }
@@ -188,4 +188,4 @@ $htmlContent += @'
 '@
 $htmlContent | Out-File -FilePath $htmlFile -Encoding UTF8
 
-Write-Host " [ ** ] System Inventorization saved in files: '$csvFile' and '$htmlFile'" -ForegroundColor Green
+Write-Host " [ ** ] System Inventorization saved in files: '$csvFile' & '$htmlFile'" -ForegroundColor Green
