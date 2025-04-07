@@ -1,4 +1,4 @@
-﻿Clear-Host
+Clear-Host
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -217,11 +217,16 @@ if ($questionRemoveOneDrive -eq 'Yes') {
     Write-Host '                                                 ║' -ForegroundColor DarkCyan
     Write-Host "        ═════════════════════════════════════════════════════`n" -ForegroundColor DarkCyan
 
-    try {
-        & powershell.exe -ExecutionPolicy Bypass -File '.\UninstallOneDrive.ps1'
+    $oneDriveScriptFile = 'UninstallOneDrive.ps1'
+    $oneDriveScriptPath = Join-Path $PSScriptRoot $oneDriveScriptFile
+    if (Test-Path -Path $oneDriveScriptPath -PathType Leaf) {
+        & powershell.exe -ExecutionPolicy Bypass -File $oneDriveScriptPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Script '$oneDriveScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
+        }
     }
-    catch {
-        Write-Warning "Failed to run UninstallOneDrive.ps1: $($_.Exception.Message)"
+    else {
+        Write-Warning "Skipping OneDrive removal: Script '$oneDriveScriptFile' not found in '$PSScriptRoot'"
     }
 }
 
@@ -241,56 +246,66 @@ $currentDate = Get-Date -Format "dd/MM/yyyy"
 $fileDate = Get-Date -Format "dd-MM-yyyy"
 
 $currentComputerName = $env:COMPUTERNAME
+$newComputerName = $null
+
 do {
-    $newComputerName = Read-Host -Prompt ' [ >> ] Enter a new name for this PC'
-    if ([string]::IsNullOrWhiteSpace($newComputerName)) {
-        Write-Host ' [ !! ] Computer name cannot be empty. Please enter a valid name' -ForegroundColor Red
+    $inputName = Read-Host -Prompt " [ >> ] Enter a new name for this PC (Current: $($currentComputerName), press Enter to keep)"
+    if ([string]::IsNullOrWhiteSpace($inputName)) {
+        $newComputerName = $currentComputerName
+        Write-Host " [ *! ] Keeping current computer name: $($currentComputerName)" -ForegroundColor Yellow
+        break
+    }
+    if ($inputName -match '[^a-zA-Z0-9\-]') {
+        Write-Host ' [ !! ] Computer name contains invalid characters. Use only letters, numbers, and hyphens' -ForegroundColor Red
         continue
     }
-    if ($newComputerName -match '[^a-zA-Z0-9\-]') {
-        Write-Host ' [ !! ] Computer name contains invalid characters.  Use only letters, numbers, and hyphens' -ForegroundColor Red
-        continue
-    }
-    if ($newComputerName -match '^-|-$') {
+    if ($inputName -match '^-|-$') {
         Write-Host ' [ !! ] Computer name cannot start or end with a hyphen' -ForegroundColor Red
         continue
     }
-    if ($newComputerName -match '^\d+$') {
+    if ($inputName -match '^\d+$') {
         Write-Host ' [ !! ] Computer name cannot consist only of numbers' -ForegroundColor Red
         continue
     }
-    if ($newComputerName.Length -gt 15) {
+    if ($inputName.Length -gt 15) {
         Write-Host ' [ !! ] Computer name is too long (maximum 15 characters)' -ForegroundColor Red
         continue
     }
-    if ($newComputerName -eq $currentComputerName) {
-        Write-Host ' [ *! ] The new computer name is the same as the current. No changes were made' -ForegroundColor Yellow
-        Add-Content -Path "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Value "[ $($currentDate) ] PC name: $($newComputerName)`n"
+    if ($inputName -eq $currentComputerName) {
+        $newComputerName = $currentComputerName
+        Write-Host ' [ *! ] The new computer name is the same as the current. No changes will be made to the name.' -ForegroundColor Yellow
         break
     }
+    $newComputerName = $inputName
     break
 } while ($true)
+
+$fileNameBase = if (-not [string]::IsNullOrWhiteSpace($newComputerName)) { $newComputerName } else { $currentComputerName }
+$fileNameBase = $fileNameBase -replace '[\\/:*?"<>|]', '_'
+
+Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value "[ $($currentDate) ] PC name: $($newComputerName)`n"
 
 if ($newComputerName -ne $currentComputerName) {
     try {
         Rename-Computer -NewName $newComputerName -Force *> $null
         Write-Host " [ ** ] Computer renamed to $($newComputerName) successfully. A reboot is required" -ForegroundColor Green
-        Add-Content -Path "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Value "[ $($currentDate) ] PC name: $($newComputerName)`n"
         $needRestart = $true
     }
     catch {
         Write-Warning "Error renaming computer: $($_.Exception.Message)"
+        $newComputerName = $currentComputerName
     }
 }
+
 
 function Generate-SecurePassword {
     $pwgen_CONSONANT = 1
     $pwgen_VOWEL = (1 -shl 1)
     $pwgen_DIPTHONG = (1 -shl 2)
     $pwgen_NOT_FIRST = (1 -shl 3)
-    
+
     $genpas_spec_symbols = '!#$%&\()*+-/<=>?@\_'
-    
+
     $pwgen_ELEMENTS = @(
         @("a" , ($pwgen_VOWEL))
         @("ae", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
@@ -329,7 +344,7 @@ function Generate-SecurePassword {
         @("y" , ($pwgen_CONSONANT)),
         @("z" , ($pwgen_CONSONAN))
     )
-    
+
     function pwgen_generate ($pwlen, $inc_capital, $inc_number, $inc_spec) {
         $result = ""
         while (-not $result) {
@@ -337,7 +352,7 @@ function Generate-SecurePassword {
         }
         return $result
     }
-    
+
     function pwgen_generate0 ([int]$pwlen, [bool]$inc_capital, [bool]$inc_number, [bool]$inc_spec) {
         $result = ""
         $prev = 0;
@@ -444,7 +459,7 @@ if (-not (Get-LocalUser -Name $userName -ErrorAction SilentlyContinue)) {
         catch {
             Write-Warning "Error adding 'helper' to group '$adminGroupName': $($_.Exception.Message)"
         }
-        Add-Content -Path "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Value "helper password:`n$password`n"
+        Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value "helper password:`n$password`n`n"
         Write-Host " [ ** ] User 'helper' created" -ForegroundColor Green
     }
     catch {
@@ -526,11 +541,18 @@ else {
 if ($is7zInstalled) {
     if ($windowsVersion -like '22*') {
         Write-Host " [ ** ] Windows 10 detected - running '7z_Assoc_OnlyWin10.bat'" -ForegroundColor DarkGray
-        try {
-            Start-Process -FilePath "$PSScriptRoot\7z_Assoc_OnlyWin10.bat" -Wait
+        $assocBatFile = '7z_Assoc_OnlyWin10.bat'
+        $assocBatPath = Join-Path $PSScriptRoot $assocBatFile
+        if (Test-Path -Path $assocBatPath -PathType Leaf) {
+            try {
+                Start-Process -FilePath $assocBatPath -Wait
+            }
+            catch {
+                Write-Warning "Error running '$assocBatFile': $($_.Exception.Message)"
+            }
         }
-        catch {
-            Write-Warning "Error running '7z_Assoc_OnlyWin10.bat': $($_.Exception.Message)"
+        else {
+            Write-Warning "Skipping 7-Zip association: Script '$assocBatFile' not found in '$PSScriptRoot'"
         }
     }
     else {
@@ -538,12 +560,14 @@ if ($is7zInstalled) {
     }
 }
 
-if (Test-Path -Path "$PSScriptRoot\AnyDesk.exe" -PathType Leaf) {
-    Start-Process "$PSScriptRoot\AnyDesk.exe" '--silent --remove' -Wait
+$anyDeskExe = 'AnyDesk.exe'
+$anyDeskPath = Join-Path $PSScriptRoot $anyDeskExe
+if (Test-Path -Path $anyDeskPath -PathType Leaf) {
+    Start-Process $anyDeskPath '--silent --remove' -Wait
     $pass = Generate-SecurePassword
     Remove-Item -Path "${env:ProgramFiles(x86)}\AnyDesk", 'C:\ProgramData\AnyDesk' -Recurse -Force -ErrorAction SilentlyContinue
-    Add-Content -Path "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Value 'AnyDesk ID:'
-    Start-Process "$PSScriptRoot\AnyDesk.exe" '--install "C:\ProgramData\AnyDesk" --start-with-win --create-shortcuts --create-desktop-icon' -Wait
+    Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value 'AnyDesk ID:'
+    Start-Process $anyDeskPath '--install "C:\ProgramData\AnyDesk" --start-with-win --create-shortcuts --create-desktop-icon' -Wait
     $timeout = 30
     $timer = [System.Diagnostics.Stopwatch]::StartNew()
     Write-Host " [ >> ] When AnyDesk is completely started and obtains an ID - Press Any Key (Timeout: $($timeout) seconds)" -ForegroundColor Cyan
@@ -564,20 +588,14 @@ if (Test-Path -Path "$PSScriptRoot\AnyDesk.exe" -PathType Leaf) {
     }
     $timer.Stop()
 
-    C:\ProgramData\AnyDesk\AnyDesk.exe --get-id | Out-File "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Append
-    $pathAnyDesk = 'C:\ProgramData\AnyDesk\AnyDesk.exe'
-    $pass | & $pathAnyDesk --set-password
-    Add-Content -Path "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Value 'AnyDesk password:'
-    Add-Content -Path "$($PSScriptRoot)\$($newComputerName)_$($fileDate).txt" -Value "$pass`n`n"
+    C:\ProgramData\AnyDesk\AnyDesk.exe --get-id | Out-File "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Append
+    $pathAnyDeskRuntime = 'C:\ProgramData\AnyDesk\AnyDesk.exe' # Path after installation
+    $pass | & $pathAnyDeskRuntime --set-password
+    Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value 'AnyDesk password:'
+    Add-Content -Path "$($PSScriptRoot)\$($fileNameBase)_$($fileDate).txt" -Value "$pass`n`n"
 }
-
-if (-not $newComputerName) {
-    $newComputerName = Read-Host "Enter the computer name for the filenames (e.g., PC001)"
-    if ([string]::IsNullOrWhiteSpace($newComputerName)) {
-        Write-Warning "Computer name cannot be empty. Using default 'SystemInfo'."
-        $newComputerName = "SystemInfo"
-    }
-    $newComputerName = $newComputerName -replace '[\\/:*?"<>|]', '_'
+else {
+    Write-Warning "Skipping AnyDesk installation: Installer '$anyDeskExe' not found in '$PSScriptRoot'"
 }
 
 $result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
@@ -588,8 +606,8 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
         $currentPath = Get-Location
     }
 
-    $csvFile = Join-Path $currentPath "$($newComputerName)_INVENT.csv"
-    $htmlFile = Join-Path $currentPath "$($newComputerName)_INVENT.html"
+    $csvFile = Join-Path $currentPath "$($fileNameBase)_INVENT.csv"
+    $htmlFile = Join-Path $currentPath "$($fileNameBase)_INVENT.html"
 
     Write-Host ' [ .. ] Collecting system information...' -ForegroundColor DarkGray
 
@@ -617,7 +635,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
 
     $csvOutput = @()
 
-    $csvOutput += [PSCustomObject]@{ Property = 'Computer Name'; Value = $env:COMPUTERNAME }
+    $csvOutput += [PSCustomObject]@{ Property = 'Computer Name'; Value = $newComputerName }
 
     if ($systemInfo) {
         $csvOutput += [PSCustomObject]@{ Property = 'Operating System'; Value = "$($systemInfo.Caption) $($systemInfo.OSArchitecture)" }
@@ -738,7 +756,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>System Information for $($env:COMPUTERNAME)</title>
+    <title>System Information for $($newComputerName)</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10pt; margin: 20px; }
         h1 { color: #336699; border-bottom: 2px solid #336699; padding-bottom: 5px; }
@@ -751,7 +769,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
     </style>
 </head>
 <body>
-    <h1>System Information - $($env:COMPUTERNAME)</h1>
+    <h1>System Information - $($newComputerName)</h1>
     <table>
         <tr><th>Property</th><th>Value</th></tr>
 "@
@@ -771,7 +789,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
 </html>
 '@
     $htmlContent | Out-File -FilePath $htmlFile -Encoding UTF8
-    Write-Host " [ ** ] System Inventorization saved in files: '$csvFile' and '$htmlFile'" -ForegroundColor Green
+    Write-Host " [ ** ] System Inventorization saved in files: '$csvFile' & '$htmlFile'" -ForegroundColor Green
 }
 
 Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan
