@@ -20,8 +20,8 @@
 >    - установка AnyDesk (дистрибутив класть в папку со скриптом + задаёт сгенерированный пароль)
 >    - инвентаризация ПК (есть и отдельным скриптом)
 ---
-#### Used projects :
-Thanks a lot to all of you !
+### Used projects :
+Thanks a lot to all of you!
 #### Turn Off ContentDeliveryManager Suggested Content
 > Created By: Paul Black
 >
