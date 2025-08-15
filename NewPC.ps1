@@ -1,0 +1,1000 @@
+﻿Clear-Host
+
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')) {
+    Write-Warning 'This script requires ADMIN permissions. Please, run it as Administrator'
+    Write-Host 'Press any key to exit...'
+    [void]$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    exit
+}
+
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    Write-Warning 'This script is intended for PowerShell Classic (version 5.1 or lower). Attempting to execute in legacy mode...'
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $MyInvocation.MyCommand.Path
+        exit
+    }
+    catch {
+        Write-Error 'Failed to relaunch in classic PowerShell. Ensure PowerShell Classic is installed and accessible in PATH. Exiting...'
+        exit 1
+    }
+}
+
+$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName Microsoft.VisualBasic
+Add-Type -AssemblyName System.Web
+
+$configLoaded = $false
+$configFilePath = Join-Path $PSScriptRoot 'config.json'
+if (Test-Path $configFilePath) {
+    try {
+        $config = Get-Content -Path $configFilePath | ConvertFrom-Json
+        $appsToRemove = $config.appRemoval
+        $registrySettings = $config.registrySettings
+        $configLoaded = $true
+    }
+    catch {
+        Write-Warning "Failed to read or parse 'config.json'. App removal will be skipped."
+    }
+}
+else {
+    Write-Warning "Configuration file 'config.json' not found. App removal will be skipped."
+}
+
+try {
+    $windowsInfo = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $windowsVersion = $windowsInfo.DisplayVersion
+    $WindowsEdition = $windowsInfo.EditionID
+    $WindowsLocale = (Get-Culture).Name
+    Write-Host "`nWindows ver.: $windowsVersion ($($WindowsEdition) / $($WindowsLocale))" -ForegroundColor Cyan
+}
+catch {
+    Write-Warning 'Failed to detect Windows version/edition/locale. Some features might not work as expected.'
+    $windowsVersion = 'Unknown'
+    $WindowsEdition = 'Unknown'
+    $WindowsLocale = 'Unknown'
+}
+
+$needRestart = $false
+if ($windowsVersion -notlike '22*' -and $windowsVersion -ne 'Unknown') {
+    try {
+        Import-Module Appx -ErrorAction Stop
+    }
+    catch {
+        try {
+            Import-Module Appx -UseWindowsPowerShell -ErrorAction Stop
+        }
+        catch {
+            Import-Module Appx -SkipEditionCheck -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function New-SecurePassword {
+    $pwgen_CONSONANT = 1
+    $pwgen_VOWEL = (1 -shl 1)
+    $pwgen_DIPTHONG = (1 -shl 2)
+    $pwgen_NOT_FIRST = (1 -shl 3)
+    
+    $genpas_spec_symbols = '!@#$%*()-_'
+    
+    $pwgen_ELEMENTS = @(
+        [PSCustomObject]@{ Syllable = 'a';  Flags = ($pwgen_VOWEL) }
+        [PSCustomObject]@{ Syllable = 'ae'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'ah'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'ai'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'b';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'c';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'ch'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'd';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'e';  Flags = ($pwgen_VOWEL) }
+        [PSCustomObject]@{ Syllable = 'ee'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'ei'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'f';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'g';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'gh'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST) }
+        [PSCustomObject]@{ Syllable = 'h';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'i';  Flags = ($pwgen_VOWEL) }
+        [PSCustomObject]@{ Syllable = 'ie'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'j';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'k';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'm';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'n';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'ng'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST) }
+        [PSCustomObject]@{ Syllable = 'p';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'ph'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'qu'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'r';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 's';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'sh'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 't';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'th'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
+        [PSCustomObject]@{ Syllable = 'u';  Flags = ($pwgen_VOWEL) }
+        [PSCustomObject]@{ Syllable = 'v';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'w';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'x';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'y';  Flags = ($pwgen_CONSONANT) }
+        [PSCustomObject]@{ Syllable = 'z';  Flags = ($pwgen_CONSONANT) }
+    )
+    
+    function Get-SecureRandom {
+        param(
+            [int]$Minimum = 0,
+            [int]$Maximum
+        )
+    
+        if ($Minimum -ge $Maximum) {
+            return $Minimum
+        }
+        
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $range = $Maximum - $Minimum
+        $bytes = New-Object byte[] 4
+    
+        while ($true) {
+            $rng.GetBytes($bytes)
+            $rand = [System.BitConverter]::ToUInt32($bytes, 0)
+            $limit = ([uint32]::MaxValue / $range) * $range
+            if ($rand -lt $limit) {
+                return ($rand % $range) + $Minimum
+            }
+        }
+    }
+    
+    function pwgen_generate {
+        param(
+            [int]$pwlen,
+            [bool]$inc_capital,
+            [bool]$inc_number,
+            [bool]$inc_spec
+        )
+    
+        $capsCount = if ($inc_capital) { 1 } else { 0 }
+        $digitsCount = if ($inc_number) { 1 } else { 0 }
+        $specialsCount = if ($inc_spec) { 1 } else { 0 }
+    
+        if (($capsCount + $digitsCount + $specialsCount) -gt $pwlen) {
+            throw "Sum of required characters exceeds password length."
+        }
+    
+        while ($true) {
+            $phonetic_base = ''
+            $prev = 0
+            $isFirst = $true
+            $shouldBe = if ((Get-SecureRandom -Maximum 2) -eq 0) { $pwgen_VOWEL } else { $pwgen_CONSONANT }
+    
+            while ($phonetic_base.Length -lt $pwlen) {
+                $possibleElements = foreach ($element in $pwgen_ELEMENTS) {
+                    if (($element.Flags -band $shouldBe) -eq 0) { continue }
+                    if ($isFirst -and ($element.Flags -band $pwgen_NOT_FIRST)) { continue }
+                    if (($prev -band $pwgen_VOWEL) -and ($element.Flags -band $pwgen_VOWEL) -and ($element.Flags -band $pwgen_DIPTHONG)) { continue }
+                    if (($phonetic_base.length + $element.Syllable.length) -gt $pwlen) { continue }
+                    $element
+                }
+                
+                if ($possibleElements.Count -eq 0) {
+                     $shouldBe = if ($shouldBe -eq $pwgen_CONSONANT) { $pwgen_VOWEL } else { $pwgen_CONSONANT }
+                     $prev = 0
+                     continue
+                }
+    
+                $selected = $possibleElements[(Get-SecureRandom -Maximum $possibleElements.Count)]
+                $phonetic_base += $selected.Syllable
+                $flags = $selected.Flags
+                $prev = $flags
+                $isFirst = $false
+    
+                if ($shouldBe -eq $pwgen_CONSONANT) {
+                    $shouldBe = $pwgen_VOWEL
+                }
+                else {
+                    if (($prev -band $pwgen_VOWEL) -or ($flags -band $pwgen_DIPTHONG) -or ((Get-SecureRandom -Maximum 10) -gt 3)) {
+                        $shouldBe = $pwgen_CONSONANT
+                    }
+                    else {
+                        $shouldBe = $pwgen_VOWEL
+                    }
+                }
+            }
+            
+            if ($phonetic_base.Length -ne $pwlen) { continue }
+            
+            $passwordChars = $phonetic_base.ToCharArray()
+            $availableIndices = [System.Collections.Generic.List[int]]::new()
+            for ($i = 0; $i -lt $passwordChars.Length; $i++) {
+                if ($passwordChars[$i] -match '[a-z]') {
+                    $availableIndices.Add($i)
+                }
+            }
+    
+            if ($availableIndices.Count -lt ($capsCount + $digitsCount + $specialsCount)) {
+                continue
+            }
+            
+            for ($i = $availableIndices.Count - 1; $i -gt 0; $i--) {
+                $j = Get-SecureRandom -Maximum ($i + 1)
+                $temp = $availableIndices[$i]
+                $availableIndices[$i] = $availableIndices[$j]
+                $availableIndices[$j] = $temp
+            }
+    
+            $currentIndex = 0
+            
+            for ($i = 0; $i -lt $specialsCount; $i++) {
+                $pos = $availableIndices[$currentIndex++]
+                $charIndex = Get-SecureRandom -Maximum $genpas_spec_symbols.Length
+                $passwordChars[$pos] = $genpas_spec_symbols[$charIndex]
+            }
+    
+            for ($i = 0; $i -lt $digitsCount; $i++) {
+                $pos = $availableIndices[$currentIndex++]
+                $passwordChars[$pos] = (Get-SecureRandom -Maximum 10).ToString()
+            }
+    
+            for ($i = 0; $i -lt $capsCount; $i++) {
+                $pos = $availableIndices[$currentIndex++]
+                $passwordChars[$pos] = [char]::ToUpper($passwordChars[$pos])
+            }
+            
+            $finalPassword = -join $passwordChars
+            
+            if ($specialsCount -gt 0 -and $genpas_spec_symbols.Contains($finalPassword[0])) {
+                continue
+            }
+            
+            return $finalPassword
+        }
+    }
+    
+    pwgen_generate -pwlen 9 -inc_capital $true -inc_number $true -inc_spec $true
+}
+
+function Invoke-RobustDownload {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Uri,
+        [Parameter(Mandatory = $true)]
+        [string]$OutFile,
+        [string]$DisplayName,
+        [int]$TimeoutSeconds = 100
+    )
+    
+    if (-not $DisplayName) {
+        $DisplayName = (Split-Path $OutFile -Leaf)
+    }
+
+    try {
+        Import-Module BitsTransfer -ErrorAction Stop
+        Write-Host "Starting reliable download for '$DisplayName' using BITS..."
+        $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        
+        while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
+            $percentComplete = [math]::Round(($bitsJob.BytesTransferred / $bitsJob.BytesTotal) * 100, 2)
+            $status = "Downloading $DisplayName... $percentComplete %"
+            if ($bitsJob.JobState -eq 'TransientError') {
+                $status += ' (Network issue, retrying...)'
+            }
+            Write-Progress -Activity 'Downloading Files' -Status $status -PercentComplete $percentComplete
+            Start-Sleep -Seconds 1
+        }
+        
+        $stopwatch.Stop()
+        Write-Progress -Activity 'Downloading Files' -Completed
+
+        if ($stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
+            Remove-BitsTransfer -BitsJob $bitsJob
+            throw "Download timed out for '$DisplayName' after $TimeoutSeconds seconds."
+        }
+
+        switch ($bitsJob.JobState) {
+            'Transferred' {
+                Complete-BitsTransfer -BitsJob $bitsJob
+                Write-Host "Download completed: $OutFile"
+            }
+            'Error' {
+                $errorDetails = $bitsJob | Select-Object -ExpandProperty ErrorDescription
+                Resume-BitsTransfer -BitsJob $bitsJob | Out-Null
+                Remove-BitsTransfer -BitsJob $bitsJob
+                throw "BITS download failed for '$DisplayName': $errorDetails"
+            }
+            default {
+                Remove-BitsTransfer -BitsJob $bitsJob
+                throw "BITS download for '$DisplayName' was cancelled or failed with state: $($bitsJob.JobState)"
+            }
+        }
+    }
+    catch {
+        Write-Warning 'BITS module not found or failed. Falling back to robust Invoke-WebRequest method.'
+        
+        try {
+            Write-Host "Step 1: Getting file size for '$DisplayName'..."
+            $response = Invoke-WebRequest -Uri $Uri -Method Head
+            $expectedSize = $response.Headers['Content-Length']
+            if (-not $expectedSize) {
+                throw 'Could not determine file size from server.'
+            }
+            Write-Host "Expected file size: $expectedSize bytes."
+
+            Write-Host 'Step 2: Starting download in a background job...'
+            $job = Start-Job -ScriptBlock {
+                param($Uri, $OutFile)
+                Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            } -ArgumentList $Uri, $OutFile
+
+            $job | Wait-Job -Timeout $TimeoutSeconds | Out-Null
+
+            if ($job.State -eq 'Running') {
+                $job | Stop-Job -PassThru | Remove-Job
+                throw "Download timed out after $TimeoutSeconds seconds."
+            }
+
+            if ($job.State -ne 'Completed') {
+                $errorRecord = ($job | Receive-Job)[-1]
+                $job | Remove-Job
+                throw "Download job failed: $($errorRecord.Exception.Message)"
+            }
+            
+            $job | Receive-Job
+            $job | Remove-Job
+
+            Write-Host 'Step 3: Verifying file integrity...'
+            $actualSize = (Get-Item -Path $OutFile).Length
+            if ($actualSize -ne $expectedSize) {
+                Remove-Item -Path $OutFile -Force
+                throw "File integrity check failed. Expected size: $expectedSize bytes, Actual size: $actualSize bytes. The downloaded file has been deleted."
+            }
+
+            Write-Host "Download and verification successful for '$DisplayName'."
+        }
+        catch {
+            throw "Robust download fallback failed: $($_.Exception.Message)"
+        }
+    }
+}
+
+if ($configLoaded) {
+    $questionRemoveApps = [System.Windows.Forms.MessageBox]::Show('Delete useless apps?', '', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($questionRemoveApps -eq 'Yes') {
+        Write-Host "`n        ═════════════════════════════" -ForegroundColor DarkCyan
+        Write-Host '        ║                      CITS ║' -ForegroundColor DarkGray
+        Write-Host '        ║ ' -NoNewline -ForegroundColor DarkCyan
+        Write-Host '  Removing useless apps  ' -NoNewline -ForegroundColor Green
+        Write-Host ' ║' -ForegroundColor DarkCyan
+        Write-Host '        ║                           ║' -ForegroundColor DarkCyan
+        Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+        Write-Host '     please wait...' -NoNewline -ForegroundColor Magenta
+        Write-Host '      ║' -ForegroundColor DarkCyan
+        Write-Host '        ║                           ║' -ForegroundColor DarkCyan
+        Write-Host "        ═════════════════════════════`n" -ForegroundColor DarkCyan
+
+        $osKey = if ($windowsVersion -like '22*') { 'Win10' } else { 'Win11' }
+        if ($windowsVersion -eq 'Unknown') { $osKey = 'Win11' }
+        $operationSuccess = $true
+
+        if ($appsToRemove.$osKey) {
+            foreach ($appName in $appsToRemove.$osKey) {
+                if (Get-AppxPackage -AllUsers -Name "*$appName*" -ErrorAction SilentlyContinue) {
+                    try {
+                        Get-AppxPackage "*$appName*" | Remove-AppxPackage -ErrorAction SilentlyContinue
+                        Get-AppxPackage -AllUsers "*$appName*" | Remove-AppxPackage -ErrorAction SilentlyContinue
+                        Get-AppxProvisionedPackage -Online | Where-Object { $_.PackageName -like "*$appName*" } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+                    }
+                    catch {
+                        Write-Warning "Failed to remove app '$appName': $($_.Exception.Message)"
+                        $operationSuccess = $false
+                    }
+                }
+            }
+            if ($operationSuccess) {
+                Write-Host ' [ ** ] Useless apps were successfully removed' -ForegroundColor Green
+                $needRestart = $true
+            }
+        }
+        else {
+            Write-Warning "Could not determine appropriate app list for Windows Version '$windowsVersion'. Skipping app removal."
+        }
+
+        $registryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+        
+        try {
+            New-Item -Path $registryPath -Type Directory -Force | Out-Null
+
+            foreach ($property in $registrySettings.PSObject.Properties) {
+                Set-ItemProperty -Path $registryPath -Name $property.Name -Value $property.Value -Type DWord -Force
+            }
+
+            $subkeysToRemove = @(
+                "$registryPath\Subscriptions",
+                "$registryPath\SuggestedApps"
+            )
+
+            foreach ($subkeyToRemove in $subkeysToRemove) {
+                if (Test-Path $subkeyToRemove) {
+                    Remove-Item -Path $subkeyToRemove -Recurse -Force
+                }
+            }
+
+            Write-Host ' [ ** ] ContentDeliveryManager Suggested Content - Disabled' -ForegroundColor Green
+        }
+        catch {
+            Write-Warning "Failed to modify registry settings for ContentDeliveryManager: $($_.Exception.Message)"
+        }
+    }
+}
+
+$questionRemoveOneDrive = [System.Windows.Forms.MessageBox]::Show('Delete OneDrive?', '', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+if ($questionRemoveOneDrive -eq 'Yes') {
+    Write-Host "`n        ═════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+    Write-Host '        ║                                                   ║' -ForegroundColor DarkCyan
+    Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+    Write-Host 'Removing OneDrive ... [ ' -NoNewline -ForegroundColor Magenta
+    Write-Host 'UninstallOneDrive.ps1' -NoNewline -ForegroundColor Blue
+    Write-Host ' ]' -NoNewline -ForegroundColor Magenta
+    Write-Host '  ║' -NoNewline -ForegroundColor DarkCyan
+    Write-Host "`n        ║  " -NoNewline -ForegroundColor DarkCyan
+    Write-Host '                                                 ║' -ForegroundColor DarkCyan
+    Write-Host "        ═════════════════════════════════════════════════════`n" -ForegroundColor DarkCyan
+
+    $oneDriveScriptFile = 'UninstallOneDrive.ps1'
+    $oneDriveScriptPath = Join-Path $PSScriptRoot $oneDriveScriptFile
+    if (Test-Path -Path $oneDriveScriptPath -PathType Leaf) {
+        & powershell.exe -ExecutionPolicy Bypass -File $oneDriveScriptPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Script '$oneDriveScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
+        }
+    }
+    else {
+        Write-Warning "Skipping OneDrive removal: Script '$oneDriveScriptFile' not found in '$PSScriptRoot'"
+    }
+}
+
+Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan
+Write-Host '        ║                  CITS ║' -ForegroundColor DarkGray
+Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+Write-Host ' Setting-Up new PC ' -NoNewline -ForegroundColor Green
+Write-Host '  ║' -ForegroundColor DarkCyan
+Write-Host '        ║                       ║' -ForegroundColor DarkCyan
+Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+Write-Host '  please wait... ' -NoNewline -ForegroundColor Magenta
+Write-Host '    ║' -ForegroundColor DarkCyan
+Write-Host '        ║                       ║' -ForegroundColor DarkCyan
+Write-Host "        ═════════════════════════`n" -ForegroundColor DarkCyan
+
+$currentDate = Get-Date -Format 'dd/MM/yyyy'
+$fileDate = Get-Date -Format 'dd-MM-yyyy'
+
+$currentComputerName = $env:COMPUTERNAME
+$newComputerName = $null
+
+do {
+    $inputName = [Microsoft.VisualBasic.Interaction]::InputBox('Enter a new name for this PC', 'Rename Computer', $currentComputerName)
+    if ([string]::IsNullOrWhiteSpace($inputName)) {
+        $newComputerName = $currentComputerName
+        Write-Host " [ *! ] Keeping current computer name: $($currentComputerName)" -ForegroundColor Yellow
+        break
+    }
+    if ($inputName -match '[^a-zA-Z0-9\-_]') {
+        [System.Windows.Forms.MessageBox]::Show('Computer name contains invalid characters. Use only letters, numbers, hyphens and underscores.', 'Invalid Name', 'OK', 'Error')
+        continue
+    }
+    if ($inputName -match '^-|-$' -or $inputName -match '^_|_$') {
+        [System.Windows.Forms.MessageBox]::Show('Computer name cannot start or end with a hyphen or underscore.', 'Invalid Name', 'OK', 'Error')
+        continue
+    }
+    if ($inputName -match '^[_\-]+$' -or $inputName -match '^\d+$') {
+        [System.Windows.Forms.MessageBox]::Show('Computer name cannot consist only of underscores, hyphens, or numbers.', 'Invalid Name', 'OK', 'Error')
+        continue
+    }
+    if ($inputName.Length -gt 15) {
+        [System.Windows.Forms.MessageBox]::Show('Computer name is too long (maximum 15 characters).', 'Invalid Name', 'OK', 'Error')
+        continue
+    }
+    if ($inputName -eq $currentComputerName) {
+        $newComputerName = $currentComputerName
+        Write-Host ' [ *! ] The new computer name is the same as the current' -ForegroundColor Yellow
+        break
+    }
+    $newComputerName = $inputName
+    break
+} while ($true)
+
+$fileNameBase = if (-not [string]::IsNullOrWhiteSpace($newComputerName)) { $newComputerName } else { $currentComputerName }
+$fileNameBase = $fileNameBase -replace '[\\/:*?"<>|]', '_'
+
+$logFilePath = Join-Path -Path $PSScriptRoot -ChildPath "$($fileNameBase)_$($fileDate).txt"
+Add-Content -Path $logFilePath -Value "[ $($currentDate) ] PC name: $($newComputerName)`n"
+
+if ($newComputerName -ne $currentComputerName) {
+    try {
+        Rename-Computer -NewName $newComputerName -Force | Out-Null
+        Write-Host " [ ** ] Computer renamed to $($newComputerName) successfully. A reboot is required" -ForegroundColor Green
+        $needRestart = $true
+    }
+    catch {
+        Write-Warning "Error renaming computer: $($_.Exception.Message)"
+        $newComputerName = $currentComputerName
+    }
+}
+
+$userName = 'helper'
+$user = Get-LocalUser -Name $userName -ErrorAction SilentlyContinue
+if (-not $user) {
+    $password = New-SecurePassword
+    $securePassword = ConvertTo-SecureString -String $password -AsPlainText -Force
+    
+    try {
+        New-LocalUser -Name $userName -Password $securePassword -Description 'CITS' | Out-Null
+        Add-Content -Path $logFilePath -Value "helper password:`n$password`n"
+        Write-Host " [ ** ] User 'helper' created" -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "Error creating user 'helper': $($_.Exception.Message)"
+    }
+}
+else {
+    Write-Host " [ *! ] User 'helper' already exists" -ForegroundColor Yellow
+    if (-not $user.Enabled) {
+        try {
+            $user | Enable-LocalUser
+        }
+        catch {
+            Write-Warning "Failed to enable user 'helper': $($_.Exception.Message)"
+        }
+    }
+}
+
+try {
+    $adminGroup = Get-LocalGroup -SID 'S-1-5-32-544'
+    if (-not (Get-LocalGroupMember -Group $adminGroup -Member $userName -ErrorAction SilentlyContinue)) {
+        Add-LocalGroupMember -Group $adminGroup -Member $userName
+    }
+    
+    $usersGroup = Get-LocalGroup -SID 'S-1-5-32-545'
+    if (Get-LocalGroupMember -Group $usersGroup -Member $userName -ErrorAction SilentlyContinue) {
+        Remove-LocalGroupMember -Group $usersGroup -Member $userName
+    }
+}
+catch {
+    Write-Warning "Could not manage 'helper' group memberships: $($_.Exception.Message)"
+}
+
+Get-LocalUser | Where-Object { $_.Enabled } | ForEach-Object {
+    try {
+        Set-LocalUser -Name $_.Name -PasswordNeverExpires $true
+    }
+    catch {
+        Write-Warning "Error setting Non-Expires passwords for Active Local user '$($_.Name)': $($_.Exception.Message)"
+    }
+}
+Write-Host ' [ ** ] All Active Local users now have Non-Expires passwords' -ForegroundColor Green
+
+if ((Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name 'HibernateEnabled' -ErrorAction SilentlyContinue) -ne 0) {
+    powercfg.exe -h off
+}
+powercfg.exe -change -standby-timeout-ac 0
+powercfg.exe -change -standby-timeout-dc 0
+powercfg.exe -change -monitor-timeout-dc 5
+powercfg.exe -change -monitor-timeout-ac 10
+Start-Sleep -Seconds 5
+powercfg.exe /SETACVALUEINDEX scheme_current sub_buttons LIDACTION 0
+powercfg.exe /SETDCVALUEINDEX scheme_current sub_buttons LIDACTION 1
+powercfg.exe /SETACVALUEINDEX scheme_current sub_buttons PBUTTONACTION 3
+powercfg.exe /SETDCVALUEINDEX scheme_current sub_buttons PBUTTONACTION 3
+powercfg.exe /SETACVALUEINDEX scheme_current sub_buttons SBUTTONACTION 0
+powercfg.exe /SETDCVALUEINDEX scheme_current sub_buttons SBUTTONACTION 1
+powercfg.exe /SETACVALUEINDEX scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+Write-Host ' [ ** ] PowerCfg complete' -ForegroundColor Green
+
+try {
+    if ((Get-NetFirewallProfile).Enabled -contains $true) {
+        Set-NetFirewallProfile -All -Enabled $false
+        Write-Host ' [ ** ] Firewall Profiles - Disabled' -ForegroundColor Green
+    }
+}
+catch {
+    Write-Warning "Failed to configure Firewall profiles: $($_.Exception.Message)"
+}
+
+try {
+    New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name fAllowToGetHelp -Value 1 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name fAllowFullControl -Value 1 -PropertyType DWord -Force | Out-Null
+    Write-Host ' [ ** ] Remote Assistance - Enabled' -ForegroundColor Green
+}
+catch {
+    Write-Warning "Failed to enable Remote Assistance: $($_.Exception.Message)"
+}
+
+
+if ($WindowsEdition -ieq 'Professional' -or $WindowsEdition -ieq 'Enterprise' -or $WindowsEdition -ieq 'Education') {
+    try {
+        Get-NetFirewallRule -Name 'RemoteDesktop-UserMode-In-TCP', 'RemoteDesktop-Shadow-In-TCP', 'RemoteDesktop-UserMode-In-UDP' | Enable-NetFirewallRule
+        $rdpWebSocketGroup = if ($WindowsLocale -like 'ru-*') { 'Веб-доступ к удаленным рабочим столам (WebSocket)' } else { 'Remote Desktop (WebSocket)' }
+        Enable-NetFirewallRule -DisplayGroup $rdpWebSocketGroup -ErrorAction SilentlyContinue
+        
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
+        
+        Write-Host ' [ ** ] RDP Host - Enabled' -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "Failed to enable RDP Host: $($_.Exception.Message)"
+    }
+}
+else {
+    Write-Host " [ *! ] Windows Edition '$WindowsEdition' detected. Skipping RDP Host configuration." -ForegroundColor Yellow
+}
+
+$is7zInstalled = $false
+$dist7z = Get-ChildItem -Path $PSScriptRoot -Filter '7z*.msi' -File
+
+if ($dist7z) {
+    try {
+        Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', "$($dist7z.FullName)", '/Qr', '/NoRestart' -Wait
+        $is7zInstalled = $true
+    }
+    catch {
+        Write-Warning "Error installing 7-Zip from local file: $($_.Exception.Message)"
+    }
+}
+else {
+    $questionDownload7z = [System.Windows.Forms.MessageBox]::Show('7-Zip installer not found. Download it now?', '7-Zip Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($questionDownload7z -eq 'Yes') {
+        try {
+            $root_url = 'https://www.7-zip.org'
+            $download_url = "$root_url/download.html"
+            $filename_pattern = '*7z*64.msi*'
+
+            $response = Invoke-WebRequest -Uri $download_url -ErrorAction Stop
+            $latest_release_filename = $response.Links.href | Where-Object { $_ -like $filename_pattern } | Select-Object -First 1
+            $latest_release_url = "$root_url/$latest_release_filename"
+            
+            $script_folder = Split-Path -Parent $MyInvocation.MyCommand.Path
+            $destination_path = Join-Path -Path $script_folder -ChildPath (Split-Path -Leaf $latest_release_filename)
+
+            Invoke-RobustDownload -Uri $latest_release_url -OutFile $destination_path -DisplayName '7-Zip Installer'
+
+            if (Test-Path -Path $destination_path) {
+                try {
+                    Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i', "$destination_path", '/Qr', '/NoRestart' -Wait
+                    $is7zInstalled = $true
+                }
+                catch {
+                    Write-Warning "Error installing 7-Zip after download: $($_.Exception.Message)"
+                }
+            }
+        }
+        catch {
+            Write-Warning "Error during 7-Zip download process: $($_.Exception.Message)"
+        }
+    }
+
+    if (-not $is7zInstalled) {
+        $path7z = Get-ChildItem -Path 'C:\Program Files\7-Zip' -Include '7z.exe' -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq '7z.exe' }
+        if ($path7z) {
+            $is7zInstalled = $true
+        }
+        else {
+            Write-Host ' [ !! ] 7-Zip installer NOT found and NOT installed.' -ForegroundColor Red
+        }
+    }
+}
+
+if ($is7zInstalled) {
+    Write-Host ' [ ** ] 7-Zip successfully installed or already present.' -ForegroundColor Green
+    if ($windowsVersion -like '22*') {
+        Write-Host " [ .. ] Windows 10 detected - running '7z_Assoc_OnlyWin10.bat'" -ForegroundColor DarkGray
+        $assocBatFile = '7z_Assoc_OnlyWin10.bat'
+        $assocBatPath = Join-Path $PSScriptRoot $assocBatFile
+        if (Test-Path -Path $assocBatPath -PathType Leaf) {
+            try {
+                Start-Process -FilePath $assocBatPath -Wait
+            }
+            catch {
+                Write-Warning "Error running '$assocBatFile': $($_.Exception.Message)"
+            }
+        }
+        else {
+            Write-Warning "Skipping 7-Zip association: Script '$assocBatFile' not found in '$PSScriptRoot'"
+        }
+    }
+    else {
+        Write-Host ' [ *! ] Please, don`t forget to associate 7-Zip files manually (automatic association works only in Win10)' -ForegroundColor White
+    }
+}
+
+function Find-AnyDeskID {
+    $confPath = 'C:\ProgramData\AnyDesk\system.conf'
+    if (Test-Path $confPath) {
+        $idLine = Get-Content $confPath | Select-String -Pattern 'ad.anynet.id='
+        if ($idLine) {
+            return ($idLine -split '=')[1].Trim()
+        }
+    }
+    return $null
+}
+
+$anyDeskExe = 'AnyDesk.exe'
+$anyDeskPath = Join-Path $PSScriptRoot $anyDeskExe
+
+if (-not (Test-Path -Path $anyDeskPath -PathType Leaf)) {
+    $questionDownloadAnyDesk = [System.Windows.Forms.MessageBox]::Show('AnyDesk installer not found. Download it now?', 'AnyDesk Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($questionDownloadAnyDesk -eq 'Yes') {
+        try {
+            $anyDeskUrl = 'http://download.anydesk.com/AnyDesk.exe'
+            Invoke-RobustDownload -Uri $anyDeskUrl -OutFile $anyDeskPath -DisplayName 'AnyDesk Installer'
+        }
+        catch {
+            Write-Warning "Error during AnyDesk download process: $($_.Exception.Message)"
+        }
+    }
+}
+
+if (Test-Path -Path $anyDeskPath -PathType Leaf) {
+    Start-Process $anyDeskPath '--silent --remove' -Wait
+    Remove-Item -Path "${env:ProgramFiles(x86)}\AnyDesk", 'C:\ProgramData\AnyDesk' -Recurse -Force -ErrorAction SilentlyContinue
+    Start-Process $anyDeskPath '--install "C:\ProgramData\AnyDesk" --start-with-win --create-shortcuts --create-desktop-icon' -Wait
+    
+    $pass = New-SecurePassword
+
+    $timeout = 60; $stopwatch = [System.Diagnostics.Stopwatch]::StartNew(); $anydeskID = $null
+    Write-Host "Waiting for AnyDesk to obtain a valid ID (Timeout: $timeout seconds)..." -ForegroundColor Cyan
+    
+    while ($stopwatch.Elapsed.TotalSeconds -lt $timeout) {
+        $anydeskID = Find-AnyDeskID
+        if ($anydeskID) {
+            Write-Host "`nAnyDesk ID obtained: $anydeskID" -ForegroundColor Cyan
+            break
+        }
+        
+        Write-Host ("Waiting... ({0:00}s remaining)" -f ($timeout - $stopwatch.Elapsed.TotalSeconds)) -NoNewline
+        Write-Host "`r" -NoNewline
+        Start-Sleep -Seconds 3
+    }
+    $stopwatch.Stop()
+
+    if (-not $anydeskID) {
+        $anydeskID = Find-AnyDeskID
+        if (-not $anydeskID) {
+            Write-Warning 'Timed out waiting for a valid AnyDesk ID. The script will continue, but the ID might not be logged correctly.'
+            $anydeskID = 'ID not found'
+        }
+    }
+    
+    Add-Content -Path $logFilePath -Value "AnyDesk ID:`n$($anydeskID)"
+    
+    try {
+        $adExePath = 'C:\ProgramData\AnyDesk\AnyDesk.exe'
+        if (Test-Path $adExePath) {
+            $pass | & $adExePath --set-password
+            if ($LASTEXITCODE -ne 0) {
+                throw "AnyDesk process returned a non-zero exit code: $LASTEXITCODE"
+            }
+            Add-Content -Path $logFilePath -Value "AnyDesk password:`n$pass`n`n"
+        }
+        else {
+            Write-Warning "AnyDesk executable not found at '$adExePath'. Could not set password."
+        }
+    }
+    catch {
+        Write-Warning "Failed to set AnyDesk password: $($_.Exception.Message)"
+        Add-Content -Path $logFilePath -Value "AnyDesk password: NOT SET (Error). Intended password was:`n$pass`n`n"
+    }
+    
+    Remove-Item -Path (Join-Path $PSScriptRoot 'service.conf.lock'), (Join-Path $PSScriptRoot 'system.conf.lock') -Force -ErrorAction SilentlyContinue
+}
+else {
+    Write-Warning 'Skipping AnyDesk installation: Installer not found or downloaded.'
+}
+
+$result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
+if ($result -eq 'Yes') {
+    if ($PSScriptRoot) {
+        $currentPath = $PSScriptRoot
+    }
+    else {
+        $currentPath = Get-Location
+    }
+
+    $csvFile = Join-Path $currentPath "$($fileNameBase)_INVENT.csv"
+    $htmlFile = Join-Path $currentPath "$($fileNameBase)_INVENT.html"
+    
+    Write-Host ' [ .. ] Collecting system information...' -ForegroundColor DarkGray
+
+    $SystemInfoParams = @{ ClassName = 'Win32_OperatingSystem'; ErrorAction = 'SilentlyContinue' }
+    $ProcessorInfoParams = @{ ClassName = 'Win32_Processor'; ErrorAction = 'SilentlyContinue' }
+    $GraphicsAdapterParams = @{ ClassName = 'Win32_VideoController'; ErrorAction = 'SilentlyContinue' }
+    $MemoryModulesParams = @{ ClassName = 'Win32_PhysicalMemory'; ErrorAction = 'SilentlyContinue' }
+    $DiskInfosParams = @{ ClassName = 'Win32_LogicalDisk'; Filter = 'DriveType = 3'; ErrorAction = 'SilentlyContinue' }
+    $NetworkAdaptersParams = @{ ClassName = 'Win32_NetworkAdapter'; Filter = 'NetConnectionStatus = 2'; ErrorAction = 'SilentlyContinue' }
+    $NetworkAdapterConfigParams = @{ ClassName = 'Win32_NetworkAdapterConfiguration'; Filter = 'IPEnabled = TRUE'; ErrorAction = 'SilentlyContinue' }
+    $ComputerSystemParams = @{ ClassName = 'Win32_ComputerSystem'; ErrorAction = 'SilentlyContinue' }
+    $MotherboardInfoParams = @{ ClassName = 'Win32_BaseBoard'; ErrorAction = 'SilentlyContinue' }
+    $BiosInfoParams = @{ ClassName = 'Win32_BIOS'; ErrorAction = 'SilentlyContinue' }
+
+    $systemInfo = Get-CimInstance @SystemInfoParams
+    $processorInfo = Get-CimInstance @ProcessorInfoParams | Select-Object -First 1
+    $graphicsAdapters = Get-CimInstance @GraphicsAdapterParams
+    $memoryModules = Get-CimInstance @MemoryModulesParams
+    $diskInfos = Get-CimInstance @DiskInfosParams
+    $networkAdapters = Get-CimInstance @NetworkAdaptersParams
+    $networkAdapterConfigs = Get-CimInstance @NetworkAdapterConfigParams
+    $computerSystem = Get-CimInstance @ComputerSystemParams
+    $motherboardInfo = Get-CimInstance @MotherboardInfoParams
+    $biosInfo = Get-CimInstance @BiosInfoParams
+    $localUsers = Get-LocalUser | Where-Object { $_.SID.Value -notmatch '-(500|501|503)$' -and $_.Name -notin 'WDAGUtilityAccount' }
+
+    $csvOutput = . {
+        [PSCustomObject]@{ Property = 'Computer Name'; Value = $newComputerName }
+
+        if ($systemInfo) {
+            [PSCustomObject]@{ Property = 'Operating System'; Value = "$($systemInfo.Caption) $($systemInfo.OSArchitecture)" }
+            [PSCustomObject]@{ Property = 'OS Version'; Value = $systemInfo.Version }
+            [PSCustomObject]@{ Property = 'OS Locale'; Value = $WindowsLocale }
+            $InstallDate = try { $systemInfo.InstallDate }
+            catch { 'N/A' }
+            [PSCustomObject]@{ Property = 'OS Installation Date'; Value = if ($InstallDate -is [datetime]) { $InstallDate.ToString('dd/MM/yyyy HH:mm:ss') } else { $InstallDate } }
+            [PSCustomObject]@{ Property = 'OS Serial Number'; Value = $systemInfo.SerialNumber }
+        }
+
+        if ($computerSystem) {
+            [PSCustomObject]@{ Property = 'PC Manufacturer'; Value = $computerSystem.Manufacturer }
+            [PSCustomObject]@{ Property = 'PC Model'; Value = $computerSystem.Model }
+            if ($computerSystem.PartOfDomain) {
+                [PSCustomObject]@{ Property = 'Domain'; Value = $computerSystem.Domain }
+            }
+            else {
+                [PSCustomObject]@{ Property = 'Workgroup'; Value = $computerSystem.Workgroup }
+            }
+        }
+        
+        if ($localUsers) {
+            foreach ($user in $localUsers | Where-Object { $_.Enabled }) {
+                [PSCustomObject]@{ Property = 'Local User - Enabled'; Value = $user.Name }
+            }
+            foreach ($user in $localUsers | Where-Object { -not $_.Enabled }) {
+                [PSCustomObject]@{ Property = 'Local User - Disabled'; Value = $user.Name }
+            }
+        }
+
+        if ($motherboardInfo) {
+            [PSCustomObject]@{ Property = 'Motherboard - Manufacturer'; Value = $motherboardInfo.Manufacturer }
+            [PSCustomObject]@{ Property = 'Motherboard - Product'; Value = $motherboardInfo.Product }
+            [PSCustomObject]@{ Property = 'Motherboard - Version'; Value = $motherboardInfo.Version }
+            [PSCustomObject]@{ Property = 'Motherboard - Serial Number'; Value = $motherboardInfo.SerialNumber }
+        }
+
+        if ($biosInfo) {
+            [PSCustomObject]@{ Property = 'BIOS - Manufacturer'; Value = $biosInfo.Manufacturer }
+            [PSCustomObject]@{ Property = 'BIOS - Version'; Value = $biosInfo.SMBIOSBIOSVersion }
+            [PSCustomObject]@{ Property = 'BIOS - Serial Number'; Value = $biosInfo.SerialNumber }
+        }
+
+        if ($processorInfo) {
+            [PSCustomObject]@{ Property = 'Processor'; Value = $processorInfo.Name.Trim() }
+            [PSCustomObject]@{ Property = 'Processor - Number of Cores'; Value = $processorInfo.NumberOfCores }
+            [PSCustomObject]@{ Property = 'Processor - Number of Logical Processors'; Value = $processorInfo.NumberOfLogicalProcessors }
+            [PSCustomObject]@{ Property = 'Processor - Max Speed (MHz)'; Value = $processorInfo.MaxClockSpeed }
+        }
+
+        if ($graphicsAdapters) {
+            $adapterIndex = 1
+            foreach ($adapter in $graphicsAdapters) {
+                $prefix = if ($graphicsAdapters.Count -gt 1) { "Graphics Card $adapterIndex" } else { 'Graphics Card' }
+                [PSCustomObject]@{ Property = "$prefix - Name"; Value = $adapter.Name }
+                [PSCustomObject]@{ Property = "$prefix - Driver Version"; Value = $adapter.DriverVersion }
+                 if ($adapter.AdapterRAM -gt 0) {
+                     $vramGB = [math]::Round($adapter.AdapterRAM / 1GB, 2)
+                     [PSCustomObject]@{ Property = "$prefix - Video RAM (GB)"; Value = $vramGB }
+                 }
+                 else {
+                      [PSCustomObject]@{ Property = "$prefix - Video RAM (GB)"; Value = 'N/A' }
+                 }
+                $adapterIndex++
+            }
+        }
+
+        if ($memoryModules) {
+            $totalRamBytes = ($memoryModules | Measure-Object -Property Capacity -Sum).Sum
+            $totalRamGB = [math]::Round($totalRamBytes / 1GB, 2)
+            [PSCustomObject]@{ Property = 'Total RAM (GB)'; Value = $totalRamGB }
+
+            foreach ($module in $memoryModules) {
+                $capacityMB = [math]::Round($module.Capacity / 1MB, 0)
+                [PSCustomObject]@{ Property = "Memory Module $($module.DeviceLocator) - Manufacturer"; Value = $module.Manufacturer }
+                [PSCustomObject]@{ Property = "Memory Module $($module.DeviceLocator) - Part Number"; Value = $module.PartNumber }
+                [PSCustomObject]@{ Property = "Memory Module $($module.DeviceLocator) - Capacity (MB)"; Value = $capacityMB }
+                [PSCustomObject]@{ Property = "Memory Module $($module.DeviceLocator) - Speed (MHz)"; Value = $module.Speed }
+                [PSCustomObject]@{ Property = "Memory Module $($module.DeviceLocator) - Serial Number"; Value = $module.SerialNumber }
+            }
+        }
+
+        if ($diskInfos) {
+            foreach ($disk in $diskInfos) {
+                $capacityGB = [math]::Round($disk.Size / 1GB, 2)
+                $freeSpaceGB = [math]::Round($disk.FreeSpace / 1GB, 2)
+                [PSCustomObject]@{ Property = "Disk $($disk.DeviceID) - Volume Name"; Value = $disk.VolumeName }
+                [PSCustomObject]@{ Property = "Disk $($disk.DeviceID) - File System"; Value = $disk.FileSystem }
+                [PSCustomObject]@{ Property = "Disk $($disk.DeviceID) - Capacity (GB)"; Value = $capacityGB }
+                [PSCustomObject]@{ Property = "Disk $($disk.DeviceID) - Free Space (GB)"; Value = $freeSpaceGB }
+            }
+        }
+
+        if ($networkAdapters) {
+            foreach ($adapter in $networkAdapters) {
+                $adapterConfig = $networkAdapterConfigs | Where-Object { $_.InterfaceIndex -eq $adapter.InterfaceIndex } | Select-Object -First 1
+
+                if ($adapterConfig) {
+                     [PSCustomObject]@{ Property = "Network Adapter [$($adapter.Name)] - Description"; Value = $adapter.Description }
+                     [PSCustomObject]@{ Property = "Network Adapter [$($adapter.Name)] - MAC Address"; Value = $adapterConfig.MACAddress }
+
+                     $ipAddress = ($adapterConfig.IPAddress | Where-Object { $_ -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' }) | Select-Object -First 1
+                     if (-not $ipAddress) { $ipAddress = ($adapterConfig.IPAddress | Select-Object -First 1) }
+                     [PSCustomObject]@{ Property = "Network Adapter [$($adapter.Name)] - IP Address"; Value = if ($ipAddress) { $ipAddress } else { '-' } }
+
+                     $subnetMask = '-'
+                     if ($ipAddress) {
+                         $ipIndex = [array]::IndexOf($adapterConfig.IPAddress, $ipAddress)
+                         if ($ipIndex -ge 0 -and $ipIndex -lt $adapterConfig.IPSubnet.Count) {
+                             $subnetMask = $adapterConfig.IPSubnet[$ipIndex]
+                         }
+                     }
+                     [PSCustomObject]@{ Property = "Network Adapter [$($adapter.Name)] - Subnet Mask"; Value = $subnetMask }
+
+                     $defaultGateway = ($adapterConfig.DefaultIPGateway | Select-Object -First 1)
+                     [PSCustomObject]@{ Property = "Network Adapter [$($adapter.Name)] - Default Gateway"; Value = if ($defaultGateway) { $defaultGateway } else { '-' } }
+
+                     $dnsServers = ($adapterConfig.DNSServerSearchOrder | Select-Object -First 2) -join ', '
+                     [PSCustomObject]@{ Property = "Network Adapter [$($adapter.Name)] - DNS Servers"; Value = if ($dnsServers) { $dnsServers } else { '-' } }
+                }
+            }
+        }
+    }
+    
+    foreach ($item in $csvOutput) {
+        if ([string]::IsNullOrWhiteSpace($item.Value)) {
+            $item.Value = '-'
+        }
+    }
+
+    $csvOutput | Export-Csv -Path $csvFile -Encoding UTF8 -NoTypeInformation
+
+    $head = @"
+<meta charset="UTF-8">
+<title>System Information for $($newComputerName)</title>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10pt; margin: 20px; }
+    h1 { color: #336699; border-bottom: 2px solid #336699; padding-bottom: 5px; }
+    table { width: 80%; border-collapse: collapse; margin-top: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    th, td { padding: 8px 12px; border: 1px solid #ccc; text-align: left; vertical-align: top; }
+    th { background-color: #eef4f9; font-weight: 600; color: #333; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    tr:hover { background-color: #f1f1f1; }
+    td:first-child { width: 35%; font-weight: 500; color: #555; }
+</style>
+"@
+
+    $bodyHeader = "<h1>System Information - $($newComputerName)</h1>"
+    $bodyFooter = "<p style='font-size: 8pt; color: #888; margin-top: 15px;'>Report generated on $currentDate</p>"
+
+    $csvOutput | Select-Object @{Name = 'Property'; Expression = { $_.Property } }, @{Name = 'Value'; Expression = { $_.Value } } | ConvertTo-Html -Head $head -Body "$bodyHeader<br>" -PostContent "<br>$bodyFooter" | Out-File -FilePath $htmlFile
+
+    Write-Host " [ ** ] System Inventorization saved in files: '$csvFile' & '$htmlFile'" -ForegroundColor Green
+}
+
+Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan
+Write-Host '        ║                       ║' -ForegroundColor DarkCyan
+Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+Write-Host '       Done! ' -NoNewline -ForegroundColor Magenta
+Write-Host '        ║' -ForegroundColor DarkCyan
+Write-Host '        ║                       ║' -ForegroundColor DarkCyan
+Write-Host "        ═════════════════════════`n" -ForegroundColor DarkCyan
+
+if ($needRestart) {
+    $questionRestartComputer = [System.Windows.Forms.MessageBox]::Show("A reboot is required to apply changes.`nReboot Now?", 'Restart Required', 'YesNo', 'Question')
+    if ($questionRestartComputer -eq 'Yes') {
+        Restart-Computer -Force
+    }
+}
