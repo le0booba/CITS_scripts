@@ -1,16 +1,16 @@
 ## CITS scripts
 
-### ⚙️ Setup & Usage
+### 🛠 Setup & Usage
 
 Project File Structure
 
 ```
-📁 NewPCSetup/
+🗀 NewPC/
 │
 ├── 🗔 NewPC.ps1
 │   (Main Script File)
 │
-├── ⚙️ config.json
+├── ⏣ config.json
 │   (Configuration File)
 │
 ├── 🗖 UninstallOneDrive.ps1
@@ -48,7 +48,7 @@ Two versions of the script are provided.
 This version includes the `Invoke-RobustDownload` function. If `7-Zip` or `AnyDesk` installers are not found locally, it will prompt the user to download them from the official websites.
 
 ##### Offline Version
-This version **does not** include the download functionality. It assumes all necessary installers are already present in the script's folder. If an installer is not found, the corresponding installation step is skipped.
+This version does not include the download functionality. It assumes all necessary installers are already present in the script's folder. If an installer is not found, the corresponding installation step is skipped.
 
 ---
 
