@@ -2,52 +2,82 @@
 
 ### 🛠 Setup & Usage
 
-Project File Structure
+#### Project File Structure
 
 ```
 🗀 NewPC/
 │
 ├── 🗔 NewPC.ps1
-│   (Main Script File)
+│   (Main Script File - Full Version)
+│
+├── 🗔 NewPC_offline.ps1
+│   (Main Script File - Offline Version)
+│
+├── 🗔 Get-PCInventory.ps1
+│   (System Information Collection Script)
+│
+├── 🗗 Start_PS.bat
+│   (PowerShell Launcher Helper)
 │
 ├── ⏣ config.json
 │   (Configuration File)
 │
 ├── 🗖 UninstallOneDrive.ps1
-│   (Helper Script)
+│   (OneDrive Removal Script)
 │
 ├── 🗗 7z_Assoc_OnlyWin10.bat
-│   (Helper Script)
+│   (7-Zip File Association Script)
 │
 ├── 📦 7zXXX-x64.msi
-│   (Software Installer)
+│   (7-Zip Installer - Optional)
 │
 └── 📦 AnyDesk.exe
-    (Software Installer)
+    (AnyDesk Installer - Optional)
 ```
 
-### File Descriptions
+#### File Descriptions
 
 | File | Description | Required? |
 | :--- | :--- | :--- |
-| **`NewPC.ps1`** | The main PowerShell script that executes all setup and configuration tasks. It contains the core logic for system checks, user interaction, and task orchestration. | **Yes** |
-| **`config.json`** | A critical configuration file in JSON format. It contains two main sections: `appRemoval` (lists of UWP apps to uninstall for Win10/Win11) and `registrySettings` (key-value pairs for configuring the Content Delivery Manager). | **Yes** |
-| **`UninstallOneDrive.ps1`** | A helper PowerShell script designed to completely and silently remove OneDrive from the system. It is called by the main script if the user confirms this action. | Optional |
-| **`7z_Assoc_OnlyWin10.bat`** | A helper batch script that sets the default file associations for archives (`.zip`, `.7z`, `.rar`, etc.) to 7-Zip. It is specifically designed for and only executed on Windows 10 systems. | Optional |
-| **`7zXXX-x64.msi`** | The official MSI installer for the 64-bit version of 7-Zip. The main script looks for a file matching `7z*.msi` to perform a silent installation. | **Yes**¹ |
-| **`AnyDesk.exe`** | The official executable installer for AnyDesk. The script uses this file to perform a silent, system-wide installation and configure unattended access. | **Yes**¹ |
+| **`NewPC.ps1`** | The main PowerShell script with download capabilities. Executes all setup tasks including app removal, system configuration, software installation, and user management. Can download missing installers from official sources. | **Yes** |
+| **`NewPC_offline.ps1`** | Offline version of the main script without download functionality. Requires all installers to be present locally. Ideal for environments without internet access. | Alternative |
+| **`Get-PCInventory.ps1`** | System information collection script that generates detailed hardware and software reports in both CSV and HTML formats. Can be run independently or called by main scripts. | Optional |
+| **`Start_PS.bat`** | Administrative PowerShell launcher that checks for admin privileges and sets the correct execution policy. Provides a convenient way to start PowerShell sessions. | Helper |
+| **`config.json`** | Critical configuration file containing app removal lists for Windows 10/11 and registry settings for disabling suggested content and ads. | **Yes** |
+| **`UninstallOneDrive.ps1`** | Specialized script for complete OneDrive removal from Windows systems. Called by main scripts when user opts to remove OneDrive. | Optional |
+| **`7z_Assoc_OnlyWin10.bat`** | Batch script for setting 7-Zip as default handler for archive formats. Windows 10 specific due to file association differences in Windows 11. | Optional |
+| **`7zXXX-x64.msi`** | Official 7-Zip MSI installer (64-bit). Script looks for files matching `7z*.msi` pattern for silent installation. | Optional¹ |
+| **`AnyDesk.exe`** | Official AnyDesk executable installer. Used for silent system-wide installation with automatic password configuration. | Optional¹ |
+
+¹ **Note:** These installer files are only strictly required for the **Offline Version**. The **Full Version** can download them automatically if not found locally.
 
 ---
-¹ **Note:** These installer files are only strictly required for the **Offline Version** of the script. In the **Full Version**, if these files are not found, the script will offer to download them from their official websites.
 
-### 📜 Script Versions
+### ⚙️ Configuration
 
-Two versions of the script are provided.
+#### `config.json` Structure
+```json
+{
+  "appRemoval": {
+    "Win11": ["App.Name1", "App.Name2"],
+    "Win10": ["App.Name3", "App.Name4"]
+  },
+  "registrySettings": {
+    "SettingName": 0,
+    "AnotherSetting": 1
+  }
+}
+```
 
-##### Full Version (With Download Support)
+### 🚀 Quick Start
+**Run as Administrator**: Right-click `Start_PS.bat` → "Run as administrator"
+
+### 💽 Script Versions
+
+#### Full Version (`NewPC.ps1`)
 This version includes the `Invoke-RobustDownload` function. If `7-Zip` or `AnyDesk` installers are not found locally, it will prompt the user to download them from the official websites.
 
-##### Offline Version
+#### Offline Version (`NewPC_offline.ps1`)
 This version does not include the download functionality. It assumes all necessary installers are already present in the script's folder. If an installer is not found, the corresponding installation step is skipped.
 
 ---
