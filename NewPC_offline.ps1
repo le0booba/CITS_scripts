@@ -24,7 +24,6 @@ if ($PSVersionTable.PSVersion.Major -ge 6) {
 $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName Microsoft.VisualBasic
-Add-Type -AssemblyName System.Web
 
 $configLoaded = $false
 $configFilePath = Join-Path $PSScriptRoot 'config.json'
@@ -249,110 +248,6 @@ function New-SecurePassword {
     }
     
     pwgen_generate -pwlen 9 -inc_capital $true -inc_number $true -inc_spec $true
-}
-
-function Invoke-RobustDownload {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Uri,
-        [Parameter(Mandatory = $true)]
-        [string]$OutFile,
-        [string]$DisplayName,
-        [int]$TimeoutSeconds = 100
-    )
-    
-    if (-not $DisplayName) {
-        $DisplayName = (Split-Path $OutFile -Leaf)
-    }
-
-    try {
-        Import-Module BitsTransfer -ErrorAction Stop
-        Write-Host "Starting reliable download for '$DisplayName' using BITS..."
-        $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous
-        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        
-        while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
-            $percentComplete = [math]::Round(($bitsJob.BytesTransferred / $bitsJob.BytesTotal) * 100, 2)
-            $status = "Downloading $DisplayName... $percentComplete %"
-            if ($bitsJob.JobState -eq 'TransientError') {
-                $status += ' (Network issue, retrying...)'
-            }
-            Write-Progress -Activity 'Downloading Files' -Status $status -PercentComplete $percentComplete
-            Start-Sleep -Seconds 1
-        }
-        
-        $stopwatch.Stop()
-        Write-Progress -Activity 'Downloading Files' -Completed
-
-        if ($stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
-            Remove-BitsTransfer -BitsJob $bitsJob
-            throw "Download timed out for '$DisplayName' after $TimeoutSeconds seconds."
-        }
-
-        switch ($bitsJob.JobState) {
-            'Transferred' {
-                Complete-BitsTransfer -BitsJob $bitsJob
-                Write-Host "Download completed: $OutFile"
-            }
-            'Error' {
-                $errorDetails = $bitsJob | Select-Object -ExpandProperty ErrorDescription
-                Resume-BitsTransfer -BitsJob $bitsJob | Out-Null
-                Remove-BitsTransfer -BitsJob $bitsJob
-                throw "BITS download failed for '$DisplayName': $errorDetails"
-            }
-            default {
-                Remove-BitsTransfer -BitsJob $bitsJob
-                throw "BITS download for '$DisplayName' was cancelled or failed with state: $($bitsJob.JobState)"
-            }
-        }
-    }
-    catch {
-        Write-Warning 'BITS module not found or failed. Falling back to robust Invoke-WebRequest method.'
-        
-        try {
-            Write-Host "Step 1: Getting file size for '$DisplayName'..."
-            $response = Invoke-WebRequest -Uri $Uri -Method Head
-            $expectedSize = $response.Headers['Content-Length']
-            if (-not $expectedSize) {
-                throw 'Could not determine file size from server.'
-            }
-            Write-Host "Expected file size: $expectedSize bytes."
-
-            Write-Host 'Step 2: Starting download in a background job...'
-            $job = Start-Job -ScriptBlock {
-                param($Uri, $OutFile)
-                Invoke-WebRequest -Uri $Uri -OutFile $OutFile
-            } -ArgumentList $Uri, $OutFile
-
-            $job | Wait-Job -Timeout $TimeoutSeconds | Out-Null
-
-            if ($job.State -eq 'Running') {
-                $job | Stop-Job -PassThru | Remove-Job
-                throw "Download timed out after $TimeoutSeconds seconds."
-            }
-
-            if ($job.State -ne 'Completed') {
-                $errorRecord = ($job | Receive-Job)[-1]
-                $job | Remove-Job
-                throw "Download job failed: $($errorRecord.Exception.Message)"
-            }
-            
-            $job | Receive-Job
-            $job | Remove-Job
-
-            Write-Host 'Step 3: Verifying file integrity...'
-            $actualSize = (Get-Item -Path $OutFile).Length
-            if ($actualSize -ne $expectedSize) {
-                Remove-Item -Path $OutFile -Force
-                throw "File integrity check failed. Expected size: $expectedSize bytes, Actual size: $actualSize bytes. The downloaded file has been deleted."
-            }
-
-            Write-Host "Download and verification successful for '$DisplayName'."
-        }
-        catch {
-            throw "Robust download fallback failed: $($_.Exception.Message)"
-        }
-    }
 }
 
 if ($configLoaded) {
@@ -667,49 +562,12 @@ if ($dist7z) {
     }
 }
 else {
-    $questionDownload7z = [System.Windows.Forms.MessageBox]::Show('7-Zip installer not found. Download it now?', '7-Zip Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
-    if ($questionDownload7z -eq 'Yes') {
-        try {
-            $root_url = 'https://www.7-zip.org'
-            $download_url = "$root_url/download.html"
-            $filename_pattern = '*7z*64.msi*'
-
-            $response = Invoke-WebRequest -Uri $download_url -ErrorAction Stop
-            $latest_release_filename = $response.Links.href | Where-Object { $_ -like $filename_pattern } | Select-Object -First 1
-            $latest_release_url = "$root_url/$latest_release_filename"
-            
-            $script_folder = Split-Path -Parent $MyInvocation.MyCommand.Path
-            $destination_path = Join-Path -Path $script_folder -ChildPath (Split-Path -Leaf $latest_release_filename)
-
-            Invoke-RobustDownload -Uri $latest_release_url -OutFile $destination_path -DisplayName '7-Zip Installer'
-
-            if (Test-Path -Path $destination_path) {
-                try {
-                    $msiArgs = "/i `"$destination_path`" /qr /norestart"
-                    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $msiArgs -Wait -PassThru
-                    if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
-                        throw "7-Zip installation failed with exit code: $($process.ExitCode)"
-                    }
-                    $is7zInstalled = $true
-                }
-                catch {
-                    Write-Warning "Error installing 7-Zip after download: $($_.Exception.Message)"
-                }
-            }
-        }
-        catch {
-            Write-Warning "Error during 7-Zip download process: $($_.Exception.Message)"
-        }
+    $path7z = Get-ChildItem -Path 'C:\Program Files\7-Zip' -Include '7z.exe' -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq '7z.exe' }
+    if ($path7z) {
+        $is7zInstalled = $true
     }
-
-    if (-not $is7zInstalled) {
-        $path7z = Get-ChildItem -Path 'C:\Program Files\7-Zip' -Include '7z.exe' -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq '7z.exe' }
-        if ($path7z) {
-            $is7zInstalled = $true
-        }
-        else {
-            Write-Host ' [ !! ] 7-Zip installer NOT found and NOT installed.' -ForegroundColor Red
-        }
+    else {
+        Write-Host ' [ !! ] 7-Zip installer NOT found and NOT installed.' -ForegroundColor Red
     }
 }
 
@@ -749,19 +607,6 @@ function Find-AnyDeskID {
 
 $anyDeskExe = 'AnyDesk.exe'
 $anyDeskPath = Join-Path $PSScriptRoot $anyDeskExe
-
-if (-not (Test-Path -Path $anyDeskPath -PathType Leaf)) {
-    $questionDownloadAnyDesk = [System.Windows.Forms.MessageBox]::Show('AnyDesk installer not found. Download it now?', 'AnyDesk Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
-    if ($questionDownloadAnyDesk -eq 'Yes') {
-        try {
-            $anyDeskUrl = 'https://download.anydesk.com/AnyDesk.exe'
-            Invoke-RobustDownload -Uri $anyDeskUrl -OutFile $anyDeskPath -DisplayName 'AnyDesk Installer'
-        }
-        catch {
-            Write-Warning "Error during AnyDesk download process: $($_.Exception.Message)"
-        }
-    }
-}
 
 if (Test-Path -Path $anyDeskPath -PathType Leaf) {
     Start-Process $anyDeskPath '--silent --remove' -Wait
@@ -817,7 +662,7 @@ if (Test-Path -Path $anyDeskPath -PathType Leaf) {
     Remove-Item -Path (Join-Path $PSScriptRoot 'service.conf.lock'), (Join-Path $PSScriptRoot 'system.conf.lock') -Force -ErrorAction SilentlyContinue
 }
 else {
-    Write-Warning 'Skipping AnyDesk installation: Installer not found or downloaded.'
+    Write-Warning 'Skipping AnyDesk installation: Installer not found.'
 }
 
 $result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
