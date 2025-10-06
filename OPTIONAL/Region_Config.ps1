@@ -2,9 +2,16 @@
 
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "⚠️  Для выполнения скрипта требуются права администратора. Перезапуск..." -ForegroundColor Yellow
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $startProcessParams = @{
+        FilePath     = "powershell.exe"
+        Verb         = "RunAs"
+        ArgumentList = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    }
+    Start-Process @startProcessParams
     exit
 }
+
+Add-Type -AssemblyName System.Windows.Forms
 
 function Write-Info($msg) { Write-Host "ℹ️  $msg" -ForegroundColor Cyan }
 function Write-OK($msg)   { Write-Host "✅  $msg" -ForegroundColor Green }
@@ -17,11 +24,19 @@ $GeoId = 203
 $SystemLocaleId = "0419"
 $rebootRequired = $false
 
+$availableCommands = @{
+    InstallLanguage = [bool](Get-Command -Name Install-Language -ErrorAction SilentlyContinue)
+    SetSystemPreferredUILanguage = [bool](Get-Command -Name Set-SystemPreferredUILanguage -ErrorAction SilentlyContinue)
+    SetWinHomeLocation = [bool](Get-Command -Name Set-WinHomeLocation -ErrorAction SilentlyContinue)
+    GetSystemLocale = [bool](Get-Command -Name Get-SystemLocale -ErrorAction SilentlyContinue)
+    CopyUserInternationalSettingsToSystem = [bool](Get-Command -Name Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue)
+}
+
 try {
     Write-Info "Начало выполнения скрипта локализации Windows"
 
     try {
-        if (Get-Command -Name Install-Language -ErrorAction SilentlyContinue) {
+        if ($availableCommands.InstallLanguage) {
             $InstalledLanguages = Get-InstalledLanguage
             if (-not ($InstalledLanguages.LanguageId -contains $Language)) {
                 Write-Info "Русский языковой пакет не найден. Начинается установка..."
@@ -40,7 +55,7 @@ try {
         Write-Warn "Сообщение об ошибке: $($_.Exception.Message)"
     }
 
-    if (Get-Command -Name Set-SystemPreferredUILanguage -ErrorAction SilentlyContinue) {
+    if ($availableCommands.SetSystemPreferredUILanguage) {
         $CurrentUILanguage = Get-SystemPreferredUILanguage
         if ($CurrentUILanguage -ne $Language) {
             Write-Info "Устанавливается русский язык в качестве языка интерфейса..."
@@ -57,17 +72,17 @@ try {
     Write-Info "Проверка и настройка языков ввода..."
     $CurrentLanguageList = Get-WinUserLanguageList
     $CurrentLanguageTags = $CurrentLanguageList.LanguageTag
-    if (($CurrentLanguageTags[0] -eq $Language) -and ($LanguageToAdd -in $CurrentLanguageTags)) {
+    if (($CurrentLanguageTags.Count -gt 0) -and ($CurrentLanguageTags[0] -eq $Language) -and ($LanguageToAdd -in $CurrentLanguageTags)) {
         Write-OK "Русский и английский языки для ввода уже настроены корректно."
     } else {
         Write-Info "Список языков ввода требует обновления. Устанавливается русский (основной) и английский."
         $NewList = New-WinUserLanguageList -Language $Language
-        $NewList.Add($LanguageToAdd)
+        [void]$NewList.Add($LanguageToAdd)
         Set-WinUserLanguageList -LanguageList $NewList -Force
         Write-OK "Список языков ввода успешно обновлен."
     }
 
-    if (Get-Command -Name Set-WinHomeLocation -ErrorAction SilentlyContinue) {
+    if ($availableCommands.SetWinHomeLocation) {
         $CurrentHomeLocation = Get-WinHomeLocation
         if ($CurrentHomeLocation.GeoId -ne $GeoId) {
             Write-Info "Устанавливается страна/регион: Россия..."
@@ -90,7 +105,7 @@ try {
     }
     
     Write-Info "Проверка языка для не-Unicode программ..."
-    if (Get-Command -Name Get-SystemLocale -ErrorAction SilentlyContinue) {
+    if ($availableCommands.GetSystemLocale) {
         $CurrentSystemLocale = Get-SystemLocale
         if ($CurrentSystemLocale.Name -ne $Language) {
             Write-Info "Установка языка для не-Unicode программ (современный метод)..."
@@ -115,7 +130,7 @@ try {
         }
     }
 
-    if (Get-Command -Name Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue) {
+    if ($availableCommands.CopyUserInternationalSettingsToSystem) {
         Write-Info "Копирование международных настроек (современный метод)..."
         Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
         Write-OK "Настройки успешно скопированы."
@@ -139,7 +154,10 @@ try {
 
     Write-OK "Все операции успешно завершены."
     if ($rebootRequired) {
-        Write-Warn "Для полного применения всех изменений ТРЕБУЕТСЯ ПЕРЕЗАГРУЗКА системы."
+        $questionRestartComputer = [System.Windows.Forms.MessageBox]::Show("Для применения изменений требуется перезагрузка.`nПерезагрузить сейчас?", "Требуется перезагрузка", "YesNo", "Question")
+        if ($questionRestartComputer -eq "Yes") {
+            Restart-Computer -Force
+        }
     }
 
 }
