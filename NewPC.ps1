@@ -57,6 +57,17 @@ catch {
     $WindowsLocale = 'Unknown'
 }
 
+$confirmChoice = $null
+do {
+    $confirmChoice = [Microsoft.VisualBasic.Interaction]::InputBox("Confirm Windows version detection:`r`n1. Auto-ident. is correct [ Continue execution ]`r`n2. Select [ WINDOWS 10 ]`r`n3. Select [ WINDOWS 11 ]", 'Confirm Windows Version', '1')
+    if ($confirmChoice -eq '') { $confirmChoice = '1' }
+} while ($confirmChoice -notin @('1','2','3'))
+switch ($confirmChoice) {
+    '2' { $windowsVersion = '22H2' }
+    '3' { $windowsVersion = '23H2' }
+    default { }
+}
+
 $needRestart = $false
 if ($windowsVersion -notlike '22*' -and $windowsVersion -ne 'Unknown') {
     try {

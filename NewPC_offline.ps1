@@ -597,9 +597,22 @@ if ($is7zInstalled) {
 function Find-AnyDeskID {
     $confPath = 'C:\ProgramData\AnyDesk\system.conf'
     if (Test-Path $confPath) {
-        $idLine = Get-Content $confPath | Select-String -Pattern 'ad.anynet.id='
-        if ($idLine) {
-            return ($idLine -split '=')[1].Trim()
+        $maxAttempts = 5
+        $attemptDelay = 2
+        for ($i = 0; $i -lt $maxAttempts; $i++) {
+            try {
+                $idLine = Get-Content $confPath -ErrorAction Stop | Select-String -Pattern 'ad.anynet.id='
+                if ($idLine) {
+                    return ($idLine -split '=')[1].Trim()
+                }
+                break
+            }
+            catch {
+                if ($i -eq ($maxAttempts - 1)) {
+                    Write-Warning "Failed to read AnyDesk config after $maxAttempts attempts: $($_.Exception.Message)"
+                }
+                Start-Sleep -Seconds $attemptDelay
+            }
         }
     }
     return $null
