@@ -1,61 +1,61 @@
-## CITS scripts
+## CITS скрипты
 
-### 🛠 Setup & Usage
+### 🛠 Настройка и использование
 
-#### Project File Structure
+#### Структура файлов проекта
 
 ```
 🗀 NewPC/
 │
 ├── 🗔 NewPC.ps1
-│   (Main Script File | WITH 7Zip & AnyDesk latest version download functiuon)
+│   (Основной файл скрипта | С функцией загрузки последних версий 7Zip и AnyDesk)
 │
 ├── 🗔 NewPC_offline.ps1
-│   (Main Script File | WITHOUT 7Zip & AnyDesk latest version download functiuon)
+│   (Основной файл скрипта | БЕЗ функции загрузки последних версий 7Zip и AnyDesk)
 │
 ├── 🗔 Get-PCInventory.ps1
-│   (System Information Collection Script)
+│   (Скрипт сбора информации о системе)
 │
 ├── 🗗 Start_PS.bat
-│   (PowerShell Launcher | -NoProfile -NoExit -ExecutionPolicy Bypass)
+│   (Вспомогательный запускатель PowerShell | -NoProfile -NoExit -ExecutionPolicy Bypass)
 │
 ├── ⏣ config.json
-│   (Bloatware removal Configuration File)
+│   (Файл конфигурации для удаления лишних приложений)
 │
 ├── 🗖 UninstallOneDrive.ps1
-│   (OneDrive Removal Script)
+│   (Скрипт удаления OneDrive)
 │
 ├── 🗗 7z_Assoc_OnlyWin10.bat
-│   (7-Zip File Association Script - only for Win10)
+│   (Скрипт ассоциации файлов для 7-Zip - только для Win10)
 │
 ├── 📦 7zXXX-x64.msi
-│   (7-Zip MSI Installer - Optional)
+│   (MSI Установщик 7-Zip - Опциональный)
 │
 └── 📦 AnyDesk.exe
-    (AnyDesk Installer - Optional)
+    (Установщик AnyDesk - Опциональный)
 ```
 
-#### File Descriptions
+#### Описания файлов
 
-| File | Description | Required? |
+| Файл | Описание | Обязателен? |
 | :--- | :--- | :--- |
-| **`NewPC.ps1`** | The main PowerShell script with download capabilities. Executes all setup tasks including app removal, system configuration, software installation, and user management. Can download missing installers from official sources. | **Yes** |
-| **`NewPC_offline.ps1`** | Offline version of the main script without download functionality. Requires all installers to be present locally. Ideal for environments without internet access. | Alternative |
-| **`Get-PCInventory.ps1`** | System information collection script that generates detailed hardware and software reports in both CSV and HTML formats. Can be run independently or called by main scripts. | Optional |
-| **`Start_PS.bat`** | Administrative PowerShell launcher that checks for admin privileges and sets the correct execution policy. Provides a convenient way to start PowerShell sessions. | Helper |
-| **`config.json`** | Critical configuration file containing app removal lists for Windows 10/11 and registry settings for disabling suggested content and ads. | **Yes** |
-| **`UninstallOneDrive.ps1`** | Specialized script for complete OneDrive removal from Windows systems. Called by main scripts when user opts to remove OneDrive. | Optional |
-| **`7z_Assoc_OnlyWin10.bat`** | Batch script for setting 7-Zip as default handler for archive formats. Windows 10 specific due to file association differences in Windows 11. | Optional |
-| **`7zXXX-x64.msi`** | Official 7-Zip MSI installer (64-bit). Script looks for files matching `7z*.msi` pattern for silent installation. | Optional¹ |
-| **`AnyDesk.exe`** | Official AnyDesk executable installer. Used for silent system-wide installation with automatic password configuration. | Optional¹ |
+| **`NewPC.ps1`** | Основной скрипт PowerShell с возможностью загрузки. Выполняет все задачи настройки, включая удаление приложений, конфигурацию системы, установку программного обеспечения и управление пользователями. Может загружать отсутствующие установщики с официальных источников. | **Да** |
+| **`NewPC_offline.ps1`** | Оффлайн-версия основного скрипта без функции загрузки. Требует наличия всех установщиков локально. Идеально подходит для сред без доступа к интернету. | Альтернатива |
+| **`Get-PCInventory.ps1`** | Скрипт сбора информации о системе, генерирующий подробные отчеты о аппаратном и программном обеспечении в форматах CSV и HTML. Может запускаться независимо или вызываться основными скриптами. | Опциональный |
+| **`Start_PS.bat`** | Запускатель PowerShell с правами администратора, проверяющий наличие административных привилегий и устанавливающий правильную политику выполнения. Обеспечивает удобный способ запуска сеансов PowerShell. | Вспомогательный |
+| **`config.json`** | Критический файл конфигурации, содержащий списки удаляемых приложений для Windows 10/11 и настройки реестра для отключения предлагаемого контента и рекламы. | **Да** |
+| **`UninstallOneDrive.ps1`** | Специализированный скрипт для полного удаления OneDrive из систем Windows. Вызывается основными скриптами при выборе пользователем опции удаления OneDrive. | Опциональный |
+| **`7z_Assoc_OnlyWin10.bat`** | Пакетный скрипт для установки 7-Zip в качестве обработчика по умолчанию для форматов архивов. Специфичен для Windows 10 из-за различий в ассоциациях файлов в Windows 11. | Опциональный |
+| **`7zXXX-x64.msi`** | Официальный MSI-установщик 7-Zip (64-битный). Скрипт ищет файлы, соответствующие шаблону `7z*.msi`, для тихой установки. | Опциональный¹ |
+| **`AnyDesk.exe`** | Официальный исполняемый установщик AnyDesk. Используется для тихой системной установки с автоматической настройкой пароля. | Опциональный¹ |
 
-¹ **Note:** These installer files are only strictly required for the **Offline Version**. The **Full Version** can download them automatically if not found locally.
+¹ **Примечание:** Эти файлы установщиков строго обязательны только для **Оффлайн-версии**. **Полная версия** может загружать их автоматически, если они не найдены локально.
 
 ---
 
-### ⚙️ Configuration
+### ⚙️ Конфигурация
 
-#### `config.json` Structure
+#### Структура `config.json`
 ```json
 {
   "appRemoval": {
@@ -69,30 +69,30 @@
 }
 ```
 
-### 🚀 Quick Start
-**Run as Administrator**: Right-click `Start_PS.bat` → "Run as administrator"
+### 🚀 Быстрый запуск
+**Запуск от имени администратора**: Щелкните правой кнопкой мыши на `Start_PS.bat` → "Запустить от имени администратора"
 
-### 💽 Script Versions
+### 💽 Версии скриптов
 
-#### Full Version (`NewPC.ps1`)
-This version includes the `Invoke-RobustDownload` function. If `7-Zip` or `AnyDesk` installers are not found locally, it will prompt the user to download them from the official websites.
+#### Полная версия (`NewPC.ps1`)
+Эта версия включает функцию `Invoke-RobustDownload`. Если установщики `7-Zip` или `AnyDesk` не найдены локально, скрипт предложит пользователю загрузить их с официальных веб-сайтов.
 
-#### Offline Version (`NewPC_offline.ps1`)
-This version does not include the download functionality. It assumes all necessary installers are already present in the script's folder. If an installer is not found, the corresponding installation step is skipped.
+#### Оффлайн-версия (`NewPC_offline.ps1`)
+Эта версия не включает функцию загрузки. Предполагается, что все необходимые установщики уже присутствуют в папке скрипта. Если установщик не найден, соответствующий шаг установки пропускается.
 
 ---
 
-### Used projects :
-Thanks a lot to all of you!
-#### Turn Off ContentDeliveryManager Suggested Content
-> Created By: Paul Black
+### Используемые проекты:
+Большое спасибо всем вам!
+#### Отключение предлагаемого контента ContentDeliveryManager
+> Создано: Paul Black
 >
-> Created On: 03-Sep-2021
+> Дата создания: 03-Sep-2021
 >
 > [Windows 10 Forums / How to Turn On or Off Automatically Installing Suggested Apps in Windows 10](https://www.tenforums.com/tutorials/68217-turn-off-automatic-installation-suggested-apps-windows-10-a.HTML)
 #### UninstallOneDrive
-> AUTHOR asherto
+> АВТОР asherto
 >
-> COMPANYNAME asheroto
+> КОМПАНИЯ asheroto
 >
-> PROJECTURI https://github.com/asheroto/UninstallOneDrive
+> ПРОЕКТ https://github.com/asheroto/UninstallOneDrive
