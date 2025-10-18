@@ -82,17 +82,25 @@
 
 ---
 
+<div align="center">
+
+[English version README](https://github.com/le0booba/CITS_scripts/blob/main/README_en.md)
+
+</div>
+
+---
+
 ### Используемые проекты:
 Большое спасибо всем вам!
-#### Отключение предлагаемого контента ContentDeliveryManager
-> Создано: Paul Black
+#### Turn Off ContentDeliveryManager Suggested Content
+> Created By: Paul Black
 >
-> Дата создания: 03-Sep-2021
+> Created On: 03-Sep-2021
 >
 > [Windows 10 Forums / How to Turn On or Off Automatically Installing Suggested Apps in Windows 10](https://www.tenforums.com/tutorials/68217-turn-off-automatic-installation-suggested-apps-windows-10-a.HTML)
 #### UninstallOneDrive
-> АВТОР asherto
+> AUTHOR asherto
 >
-> КОМПАНИЯ asheroto
+> COMPANYNAME asheroto
 >
-> ПРОЕКТ https://github.com/asheroto/UninstallOneDrive
+> PROJECTURI https://github.com/asheroto/UninstallOneDrive
