@@ -8,28 +8,28 @@
 🗀 NewPC/
 │
 ├── 🗔 NewPC.ps1
-│   (Main Script File - Full Version)
+│   (Main Script File | WITH 7Zip & AnyDesk latest version download functiuon)
 │
 ├── 🗔 NewPC_offline.ps1
-│   (Main Script File - Offline Version)
+│   (Main Script File | WITHOUT 7Zip & AnyDesk latest version download functiuon)
 │
 ├── 🗔 Get-PCInventory.ps1
 │   (System Information Collection Script)
 │
 ├── 🗗 Start_PS.bat
-│   (PowerShell Launcher Helper)
+│   (PowerShell Launcher | -NoProfile -NoExit -ExecutionPolicy Bypass)
 │
 ├── ⏣ config.json
-│   (Configuration File)
+│   (Bloatware removal Configuration File)
 │
 ├── 🗖 UninstallOneDrive.ps1
 │   (OneDrive Removal Script)
 │
 ├── 🗗 7z_Assoc_OnlyWin10.bat
-│   (7-Zip File Association Script)
+│   (7-Zip File Association Script - only for Win10)
 │
 ├── 📦 7zXXX-x64.msi
-│   (7-Zip Installer - Optional)
+│   (7-Zip MSI Installer - Optional)
 │
 └── 📦 AnyDesk.exe
     (AnyDesk Installer - Optional)
