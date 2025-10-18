@@ -84,7 +84,7 @@
 
 <div align="center">
 
-[English version README](https://github.com/le0booba/CITS_scripts/blob/main/README_en.md)
+[README in English](https://github.com/le0booba/CITS_scripts/blob/main/README_en.md)
 
 </div>
 
