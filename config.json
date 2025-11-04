@@ -38,7 +38,8 @@
       "Facebook.317180B0BB486",
       "4AE8B7C2.Booking.comPartnerEdition",
       "Microsoft.Edge.GameAssist",
-      "Microsoft.Copilot"
+      "Microsoft.Copilot",
+      "Microsoft.OneDrive"
     ],
     "Win10": [
       "Microsoft.549981C3F5F10",
@@ -46,7 +47,6 @@
       "MicrosoftOfficeHub",
       "Microsoft.Office.OneNote",
       "MSPaint",
-      "SkypeApp",
       "Microsoft.Xbox.TCUI",
       "Microsoft.XboxGameOverlay",
       "Microsoft.XboxGamingOverlay",

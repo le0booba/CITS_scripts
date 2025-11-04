@@ -200,6 +200,6 @@ $htmlParams = @{
     PostContent = "<br><p style='font-size: 8pt; color: #888; margin-top: 15px;'>Report generated on $currentDate</p>"
 }
 
-$csvOutput | Select-Object @{Name = 'Property'; Expression = { $_.Property } }, @{Name = 'Value'; Expression = { $_.Value } } | ConvertTo-Html @htmlParams | Out-File -FilePath $htmlFile
+$csvOutput | Select-Object @{Name = 'Property'; Expression = { $_.Property } }, @{Name = 'Value'; Expression = { $_.Value } } | ConvertTo-Html @htmlParams | Out-File -FilePath $htmlFile -Encoding UTF8
 
 Write-Host " [ ** ] System Inventorization saved in files: '$csvFile' & '$htmlFile'" -ForegroundColor Green

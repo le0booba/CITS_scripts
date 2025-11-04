@@ -57,6 +57,7 @@ catch {
     $WindowsLocale = 'Unknown'
 }
 
+<#
 $confirmChoice = $null
 do {
     $confirmChoice = [Microsoft.VisualBasic.Interaction]::InputBox("Confirm Windows version detection:`r`n1. Auto-ident. is correct [ Continue execution ]`r`n2. Select [ WINDOWS 10 ]`r`n3. Select [ WINDOWS 11 ]", 'Confirm Windows Version', '1')
@@ -67,6 +68,7 @@ switch ($confirmChoice) {
     '3' { $windowsVersion = '23H2' }
     default { }
 }
+#>
 
 $needRestart = $false
 if ($windowsVersion -notlike '22*' -and $windowsVersion -ne 'Unknown') {
@@ -95,20 +97,16 @@ function New-SecurePassword {
         [PSCustomObject]@{ Syllable = 'a';  Flags = ($pwgen_VOWEL) }
         [PSCustomObject]@{ Syllable = 'ae'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
         [PSCustomObject]@{ Syllable = 'ah'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'ai'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
         [PSCustomObject]@{ Syllable = 'b';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'c';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'ch'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
         [PSCustomObject]@{ Syllable = 'd';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'e';  Flags = ($pwgen_VOWEL) }
         [PSCustomObject]@{ Syllable = 'ee'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'ei'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
         [PSCustomObject]@{ Syllable = 'f';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'g';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'gh'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST) }
         [PSCustomObject]@{ Syllable = 'h';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'i';  Flags = ($pwgen_VOWEL) }
-        [PSCustomObject]@{ Syllable = 'ie'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
         [PSCustomObject]@{ Syllable = 'j';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'k';  Flags = ($pwgen_CONSONANT) }
         [PSCustomObject]@{ Syllable = 'm';  Flags = ($pwgen_CONSONANT) }
@@ -604,6 +602,8 @@ if ($hibernateEnabled) {
 
 powercfg.exe -change -standby-timeout-ac 0
 powercfg.exe -change -standby-timeout-dc 0
+powercfg.exe -change -disk-timeout-ac 0
+powercfg.exe -change -disk-timeout-dc 0
 powercfg.exe -change -monitor-timeout-dc 5
 powercfg.exe -change -monitor-timeout-ac 10
 Start-Sleep -Seconds 5
@@ -842,6 +842,22 @@ if (Test-Path -Path $anyDeskPath -PathType Leaf) {
 }
 else {
     Write-Warning 'Skipping AnyDesk installation: Installer not found or downloaded.'
+}
+
+$questionApplyTweaks = [System.Windows.Forms.MessageBox]::Show('Apply UI tweaks?', 'Confirm UI Tweaks', 'YesNo', 'Question')
+if ($questionApplyTweaks -eq 'Yes') {
+    $uiTweaksScriptFile = 'ApplyUI-tweaks.ps1'
+    $uiTweaksScriptPath = Join-Path $PSScriptRoot $uiTweaksScriptFile
+    if (Test-Path -Path $uiTweaksScriptPath -PathType Leaf) {
+        & powershell.exe -ExecutionPolicy Bypass -File $uiTweaksScriptPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Script '$uiTweaksScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
+        }
+        $needRestart = $true
+    }
+    else {
+        Write-Warning "Skipping UI tweaks: Script '$uiTweaksScriptFile' not found in '$PSScriptRoot'"
+    }
 }
 
 $result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
