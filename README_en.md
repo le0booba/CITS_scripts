@@ -8,10 +8,10 @@
 🗀 NewPC/
 │
 ├── 🗔 NewPC.ps1
-│   (Main Script File | WITH 7Zip & AnyDesk latest version download functiuon)
+│   (Main Script File | WITH 7Zip & AnyDesk latest version download function)
 │
 ├── 🗔 NewPC_offline.ps1
-│   (Main Script File | WITHOUT 7Zip & AnyDesk latest version download functiuon)
+│   (Main Script File | WITHOUT 7Zip & AnyDesk latest version download function)
 │
 ├── 🗔 Get-PCInventory.ps1
 │   (System Information Collection Script)
@@ -31,8 +31,11 @@
 ├── 📦 7zXXX-x64.msi
 │   (7-Zip MSI Installer - Optional)
 │
-└── 📦 AnyDesk.exe
-    (AnyDesk Installer - Optional)
+├── 📦 AnyDesk.exe
+│   (AnyDesk Installer - Optional)
+│
+└── 🗔 ApplyUI-tweaks.ps1
+    (UI Tweaks Application Script)
 ```
 
 #### File Descriptions
@@ -48,6 +51,7 @@
 | **`7z_Assoc_OnlyWin10.bat`** | Batch script for setting 7-Zip as default handler for archive formats. Windows 10 specific due to file association differences in Windows 11. | Optional |
 | **`7zXXX-x64.msi`** | Official 7-Zip MSI installer (64-bit). Script looks for files matching `7z*.msi` pattern for silent installation. | Optional¹ |
 | **`AnyDesk.exe`** | Official AnyDesk executable installer. Used for silent system-wide installation with automatic password configuration. | Optional¹ |
+| **`ApplyUI-tweaks.ps1`** | UI tweaks application script for all users (including offline profiles and default profile). Configures explorer settings, taskbar, search, and other interface elements. | Optional |
 
 ¹ **Note:** These installer files are only strictly required for the **Offline Version**. The **Full Version** can download them automatically if not found locally.
 
