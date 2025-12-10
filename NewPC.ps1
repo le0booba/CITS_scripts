@@ -353,16 +353,11 @@ $newComputerName = $null
 do {
     $inputName = [Microsoft.VisualBasic.Interaction]::InputBox('Enter a new name for this PC', 'Rename Computer', $currentComputerName)
     if ([string]::IsNullOrWhiteSpace($inputName)) {
-        $newComputerName = $currentComputerName
-        Write-Host " [ *! ] Keeping current computer name: $($currentComputerName)" -ForegroundColor Yellow
-        break
-    }
-    if ([string]::IsNullOrWhiteSpace($inputName)) {
         [System.Windows.Forms.MessageBox]::Show('Computer name cannot be empty.', 'Invalid Name', 'OK', 'Error')
         continue
     }
-    if ($inputName -match '[^a-zA-Z0-9\-_]') {
-        [void][System.Windows.Forms.MessageBox]::Show('Computer name contains invalid characters. Use only letters, numbers, hyphens and underscores.', 'Invalid Name', 'OK', 'Error')
+    if ($inputName -match '[^a-zA-Z0-9\-]') {
+        [void][System.Windows.Forms.MessageBox]::Show('Computer name contains invalid characters. Use only letters, numbers and hyphens.', 'Invalid Name', 'OK', 'Error')
         continue
     }
     if ($inputName -match '^-|-$' -or $inputName -match '^_|_$') {
