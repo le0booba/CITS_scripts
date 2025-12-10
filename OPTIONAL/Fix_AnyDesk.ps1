@@ -9,188 +9,210 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 Add-Type -AssemblyName System.Windows.Forms
 
-function Generate-SecurePassword {
+function Invoke-RobustDownload {
     param(
-        [int]$PasswordLength = 9,
-        [switch]$IncludeCapitalLetters,
-        [switch]$IncludeNumbers,
-        [switch]$IncludeSpecialCharacters
+        [Parameter(Mandatory = $true)]
+        [string]$Uri,
+        [Parameter(Mandatory = $true)]
+        [string]$OutFile,
+        [string]$DisplayName,
+        [int]$TimeoutSeconds = 100
     )
-
-    $pwgen_CONSONANT = 1
-    $pwgen_VOWEL = (1 -shl 1)
-    $pwgen_DIPTHONG = (1 -shl 2)
-    $pwgen_NOT_FIRST = (1 -shl 3)
-
-    $genpas_spec_symbols = '!#$%&\()*+-/<=>?@\_'
-
-    $pwgen_ELEMENTS = @(
-        @("a" , ($pwgen_VOWEL))
-        @("ae", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
-        @("ah", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
-        @("ai", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
-        @("b" , ($pwgen_CONSONANT))
-        @("c" , ($pwgen_CONSONANT))
-        @("ch", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG)),
-        @("d" , ($pwgen_CONSONANT))
-        @("e" , ($pwgen_VOWEL))
-        @("ee", ($pwgen_VOWEL -bor $pwgen_DIPTHONG))
-        @("ei", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
-        @("f" , ($pwgen_CONSONANT))
-        @("g" , ($pwgen_CONSONANT))
-        @("gh", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST)),
-        @("h" , ($pwgen_CONSONANT))
-        @("i" , ($pwgen_VOWEL))
-        @("ie", ($pwgen_VOWEL -bor $pwgen_DIPTHONG))
-        @("j" , ($pwgen_CONSONANT))
-        @("k" , ($pwgen_CONSONANT))
-        #@("l" , ($pwgen_CONSONANT)),
-        @("m" , ($pwgen_CONSONANT))
-        @("n" , ($pwgen_CONSONANT))
-        @("ng", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST))
-        #@("o" , ($pwgen_VOWEL)),
-        #@("oh", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
-        #@("oo", ($pwgen_VOWEL -bor $pwgen_DIPTHONG)),
-        @("p" , ($pwgen_CONSONANT))
-        @("ph", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG))
-        @("qu", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG))
-        @("r" , ($pwgen_CONSONANT))
-        @("s" , ($pwgen_CONSONANT))
-        @("sh", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG))
-        @("t" , ($pwgen_CONSONANT))
-        @("th", ($pwgen_CONSONANT -bor $pwgen_DIPTHONG))
-        @("u" , ($pwgen_VOWEL))
-        @("v" , ($pwgen_CONSONANT))
-        @("w" , ($pwgen_CONSONANT))
-        @("x" , ($pwgen_CONSONANT))
-        @("y" , ($pwgen_CONSONANT))
-        @("z" , ($pwgen_CONSONAN))
-    )
-
-    function pwgen_generate {
-      param(
-        [int]$pwlen,
-        [bool]$inc_capital,
-        [bool]$inc_number,
-        [bool]$inc_spec
-      )
-        $result = ""
-        while (-not $result) {
-            $result = pwgen_generate0 -pwlen $pwlen -inc_capital $inc_capital -inc_number $inc_number -inc_spec $inc_spec
-        }
-        return $result
+    
+    if (-not $DisplayName) {
+        $DisplayName = (Split-Path $OutFile -Leaf)
     }
 
-    function pwgen_generate0 ([int]$pwlen, [bool]$inc_capital, [bool]$inc_number, [bool]$inc_spec) {
-        $result = ""
-        $prev = 0;
-        $isFirst = $true;
-        if ((Get-Random -Maximum 1.0) -lt 0.5) {
-            $shouldBe = $pwgen_VOWEL
+    try {
+        Import-Module BitsTransfer -ErrorAction Stop
+        Write-Host "Starting reliable download for '$DisplayName' using BITS..."
+        $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        
+        while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
+            $percentComplete = [math]::Round(($bitsJob.BytesTransferred / $bitsJob.BytesTotal) * 100, 2)
+            $status = "Downloading $DisplayName... $percentComplete %"
+            if ($bitsJob.JobState -eq 'TransientError') {
+                $status += ' (Network issue, retrying...)'
+            }
+            Write-Progress -Activity 'Downloading Files' -Status $status -PercentComplete $percentComplete
+            Start-Sleep -Milliseconds 500
         }
-        else {
-            $shouldBe = $pwgen_CONSONANT
-        }
-        while ($result.length -lt $pwlen) {
-            $i = [math]::Truncate(($pwgen_ELEMENTS.count - 1) * (Get-Random -Maximum 1.0))
-            $str = $pwgen_ELEMENTS[$i][0]
-            $flags = $pwgen_ELEMENTS[$i][1]
-            if (($flags -band $shouldBe) -eq 0) {
-                continue
-            }
-            if ($isFirst -and ($flags -band $pwgen_NOT_FIRST)) {
-                continue
-            }
-            if (($prev -band $pwgen_VOWEL) -and ($flags -band $pwgen_VOWEL) -and ($flags -band $pwgen_DIPTHONG)) {
-                continue
-            }
-            if (($result.length + $str.length) -gt $pwlen) {
-                continue
-            }
-            if ($inc_capital) {
-                if (($isFirst -or ($flags -band $pwgen_CONSONANT)) -and ((Get-Random -Maximum 1.0) -gt 0.3)) {
-                    $str = $str.substring(0, 1).toupper() + $str.substring(1)
-                    $inc_capital = $false
-                }
-            }
-            $result += $str
-            if ($inc_number) {
-                if ((-not $isFirst) -and ((Get-Random -Maximum 1.0) -lt 0.3)) {
-                    if (($result.length + $str.length) -gt $pwlen) {
-                        $result = $result.Substring(0, $result.Length - 1)
-                    }
-                    $result += [math]::Truncate(10 * (Get-Random -Maximum 1.0)).toString()
-                    $inc_number = $false
-                    $isFirst = $true
-                    $prev = 0
-                    if ((Get-Random -Maximum 1.0) -lt 0.5) {
-                        $shouldBe = $pwgen_VOWEL
-                    }
-                    else {
-                        $shouldBe = $pwgen_CONSONANT
-                    }
-                    continue
-                }
-            }
-            if ($inc_spec) {
-                if ((-not $isFirst) -and ((Get-Random -Maximum 1.0) -lt 0.3)) {
-                    if (($result.length + $str.length) -gt $pwlen) {
-                        $result = $result.Substring(0, $result.Length - 1)
-                    }
-                    $possible = $genpas_spec_symbols
-                    $result += $possible.chars([math]::Truncate((Get-Random -Maximum 1.0) * $possible.length))
-                    $inc_spec = $false
-                    $isFirst = $true
-                    $prev = 0
-                    if ((Get-Random -Maximum 1.0) -lt 0.5) {
-                        $shouldBe = $pwgen_VOWEL
-                    }
-                    else {
-                        $shouldBe = $pwgen_CONSONANT
-                    }
-                    continue
-                }
-            }
-            if ($shouldBe -eq $pwgen_CONSONANT) {
-                $shouldBe = $pwgen_VOWEL;
-            }
-            else {
-                if (($prev -band $pwgen_VOWEL) -or ($flags -band $pwgen_DIPTHONG) -or ((Get-Random -Maximum 1.0) -gt 0.3)) {
-                    $shouldBe = $pwgen_CONSONANT;
-                }
-                else {
-                    $shouldBe = $pwgen_VOWEL;
-                }
-            }
-            $prev = $flags;
-            $isFirst = $false;
-        }
-        if ($inc_capital -or $inc_number -or $inc_spec) {
-            return $null
-        }
-        return $result
-    }
+        
+        $stopwatch.Stop()
+        Write-Progress -Activity 'Downloading Files' -Completed
 
-  pwgen_generate -pwlen $PasswordLength -inc_capital:$IncludeCapitalLetters -inc_number:$IncludeNumbers -inc_spec:$IncludeSpecialCharacters
+        if ($stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
+            Remove-BitsTransfer -BitsJob $bitsJob
+            throw "Download timed out for '$DisplayName' after $TimeoutSeconds seconds."
+        }
+
+        switch ($bitsJob.JobState) {
+            'Transferred' {
+                Complete-BitsTransfer -BitsJob $bitsJob
+                Write-Host "Download completed: $OutFile"
+            }
+            'Error' {
+                $errorDetails = $bitsJob | Select-Object -ExpandProperty ErrorDescription
+                Resume-BitsTransfer -BitsJob $bitsJob | Out-Null
+                Remove-BitsTransfer -BitsJob $bitsJob
+                throw "BITS download failed for '$DisplayName': $errorDetails"
+            }
+            default {
+                Remove-BitsTransfer -BitsJob $bitsJob
+                throw "BITS download for '$DisplayName' was cancelled or failed with state: $($bitsJob.JobState)"
+            }
+        }
+    }
+    catch {
+        Write-Warning 'BITS module not found or failed. Falling back to robust Invoke-WebRequest method.'
+        
+        try {
+            Write-Host "Step 1: Getting file size for '$DisplayName'..."
+            $response = Invoke-WebRequest -Uri $Uri -Method Head
+            $expectedSize = $response.Headers['Content-Length']
+            if (-not $expectedSize) {
+                throw 'Could not determine file size from server.'
+            }
+            Write-Host "Expected file size: $expectedSize bytes."
+
+            Write-Host 'Step 2: Starting download in a background job...'
+            $job = Start-Job -ScriptBlock {
+                param($Uri, $OutFile)
+                Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            } -ArgumentList $Uri, $OutFile
+
+            $job | Wait-Job -Timeout $TimeoutSeconds | Out-Null
+
+            if ($job.State -eq 'Running') {
+                $job | Stop-Job -PassThru | Remove-Job
+                throw "Download timed out after $TimeoutSeconds seconds."
+            }
+
+            if ($job.State -ne 'Completed') {
+                $errorRecord = ($job | Receive-Job)[-1]
+                $job | Remove-Job
+                throw "Download job failed: $($errorRecord.Exception.Message)"
+            }
+            
+            $job | Receive-Job
+            $job | Remove-Job
+
+            Write-Host 'Step 3: Verifying file integrity...'
+            $actualSize = (Get-Item -Path $OutFile).Length
+            if ($actualSize -ne $expectedSize) {
+                Remove-Item -Path $OutFile -Force
+                throw "File integrity check failed. Expected size: $expectedSize bytes, Actual size: $actualSize bytes. The downloaded file has been deleted."
+            }
+
+            Write-Host "Download and verification successful for '$DisplayName'."
+        }
+        catch {
+            throw "Robust download fallback failed: $($_.Exception.Message)"
+        }
+    }
 }
 
+function Generate-SecurePassword {
+    
+    function Get-SecureInt {
+        param([int]$Maximum)
+        
+        if ($Maximum -le 0) { return 0 }
+        
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $bytes = New-Object byte[] 4
+        
+        while ($true) {
+            $rng.GetBytes($bytes)
+            $rand = [System.BitConverter]::ToUInt32($bytes, 0)
+            
+            $limit = [uint32]::MaxValue - ([uint32]::MaxValue % $Maximum)
+            
+            if ($rand -lt $limit) {
+                return ($rand % $Maximum)
+            }
+        }
+    }
+
+    $consonants = @('b','c','d','f','g','h','k','m','n','p','r','s','t','v','w','x','z')
+    $vowels     = @('a','e','o','u')
+    
+    $GetRandomChar = {
+        param($List)
+        $Index = Get-SecureInt -Maximum $List.Count
+        return $List[$Index]
+    }
+    
+    $char1 = (&$GetRandomChar $consonants).ToString().ToUpper()
+    $char2 = (&$GetRandomChar $vowels)
+    $char3 = (&$GetRandomChar $consonants)
+    
+    $sep = "-"
+    
+    $char4 = (&$GetRandomChar $consonants)
+    $char5 = (&$GetRandomChar $vowels)
+    $char6 = (&$GetRandomChar $consonants)
+    $char7 = (&$GetRandomChar $consonants)
+    
+    $digit = (Get-SecureInt -Maximum 10).ToString()
+
+    return "$char1$char2$char3$sep$char4$char5$char6$char7$digit"
+}
+
+function Repair-SystemTime {
+    param([int]$Retries = 3)
+    
+    try {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters" -Name "Type" -Value "NTP" -ErrorAction SilentlyContinue
+        Set-Service -Name "w32time" -StartupType Automatic -ErrorAction SilentlyContinue
+        
+        $svc = Get-Service -Name w32time
+        if ($svc.Status -ne 'Running') {
+            Start-Service -Name w32time
+        }
+    } catch {
+        Write-Warning "Failed to configure Time Service registry/startup: $($_.Exception.Message)"
+    }
+
+    for ($i = 1; $i -le $Retries; $i++) {
+        w32tm /resync /force 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host 'Time synchronization successful.'
+            return $true
+        }
+        Start-Sleep -Seconds 1
+    }
+    
+    Write-Warning "Time synchronization failed after $Retries attempts."
+    return $false
+}
+
+$programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
+$programFiles = [Environment]::GetFolderPath('ProgramFiles')
+$programData = [Environment]::GetFolderPath('CommonApplicationData')
+$appData = [Environment]::GetFolderPath('ApplicationData')
+
 $processName = 'AnyDesk'
-$pathAppData = Join-Path -Path $env:APPDATA -ChildPath 'AnyDesk'
-$pathProgramFiles = Join-Path -Path "$env:ProgramFiles(x86)" -ChildPath 'AnyDesk\AnyDesk.exe'
-$pathProgramData = Join-Path -Path $env:ProgramData -ChildPath 'AnyDesk\AnyDesk.exe'
+$pathAppDataRoaming = Join-Path -Path $appData -ChildPath 'AnyDesk'
+$pathProgramData = Join-Path -Path $programData -ChildPath 'AnyDesk\AnyDesk.exe'
 $distAD = Join-Path -Path $PSScriptRoot -ChildPath 'AnyDesk.exe'
-$pathAppDataRoaming = Join-Path -Path $env:APPDATA -ChildPath 'AnyDesk'
+$anyDeskUrl = 'https://download.anydesk.com/AnyDesk.exe'
 
 function Stop-AnyDeskProcess {
     [CmdletBinding()]
     param()
 
     try {
-        Get-Process -Name $processName -ErrorAction Stop | Stop-Process -Force
-        Write-Host "Process '$processName' terminated."
+        $processes = Get-Process -Name $processName -ErrorAction SilentlyContinue
+        if ($processes) {
+            $processes | Stop-Process -Force -ErrorAction SilentlyContinue
+            $processes | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+            Write-Host "Process '$processName' terminated."
+        }
     }
     catch {
-        Write-Host "Process '$processName' not found or could not be terminated."
+        Write-Host "Process '$processName' could not be terminated: $($_.Exception.Message)"
     }
 }
 
@@ -201,7 +223,7 @@ function Uninstall-App {
     )
     if (Test-Path -Path $Path) {
         try {
-            Start-Process -FilePath $Path -ArgumentList '--silent', '--remove' -Wait
+            Start-Process -FilePath $Path -ArgumentList '--silent', '--remove' -PassThru -Wait | Out-Null
             Write-Host "AnyDesk uninstalled from '$Description'."
         } catch {
             Write-Warning "Error uninstalling AnyDesk from '$Description': $($_.Exception.Message)"
@@ -217,21 +239,30 @@ function Remove-Folder {
         [string]$Description
     )
     if (Test-Path -Path $Path) {
-        try {
-            Remove-Item -Path $Path -Recurse -Force
-            Write-Host "Folder '$Description' removed."
-        } catch {
-            Write-Warning "Error removing folder '$Description': $($_.Exception.Message)"
+        $maxRetries = 10
+        for ($i = 0; $i -lt $maxRetries; $i++) {
+            try {
+                Remove-Item -Path $Path -Recurse -Force -ErrorAction Stop
+                Write-Host "Folder '$Description' removed."
+                return
+            } catch {
+                if ($i -eq $maxRetries - 1) {
+                    Write-Warning "Error removing folder '$Description' after retries: $($_.Exception.Message)"
+                }
+                Start-Sleep -Milliseconds 500
+            }
         }
-    } else {
-        Write-Host "Folder '$Description' not found."
     }
 }
 
 function Install-AnyDesk {
     if (Test-Path -Path $distAD) {
         try {
-            Start-Process -FilePath $distAD -ArgumentList '--install "C:\ProgramData\AnyDesk"', '--start-with-win', '--create-shortcuts', '--create-desktop-icon' -Wait
+            Start-Process -FilePath $distAD `
+                          -WorkingDirectory $env:TEMP `
+                          -ArgumentList '--install "C:\ProgramData\AnyDesk"', '--start-with-win', '--create-shortcuts', '--create-desktop-icon' `
+                          -Wait
+            
             Write-Host 'AnyDesk installed successfully.'
             return $true
         } catch {
@@ -246,10 +277,10 @@ function Install-AnyDesk {
 
 function Remove-AnyDeskFolders {
     $folders = @(
-        Join-Path -Path $env:ProgramData -ChildPath 'AnyDesk'
-        Join-Path -Path "$env:ProgramFiles(x86)" -ChildPath 'AnyDesk'
-        Join-Path -Path $env:ProgramFiles -ChildPath 'AnyDesk'
-        $pathAppDataRoaming
+        Join-Path -Path $script:programData -ChildPath 'AnyDesk'
+        Join-Path -Path $script:programFilesX86 -ChildPath 'AnyDesk'
+        Join-Path -Path $script:programFiles -ChildPath 'AnyDesk'
+        $script:pathAppDataRoaming
     )
     foreach ($folder in $folders) {
         Remove-Folder -Path $folder -Description $folder
@@ -257,22 +288,52 @@ function Remove-AnyDeskFolders {
 }
 
 function Get-AnyDeskInfo {
-    $executablePath = if (Test-Path $pathProgramData) {
-        $pathProgramData
-    } elseif (Test-Path $pathProgramFiles) {
-        $pathProgramFiles
-    } else {
+    $pathsToCheck = @(
+        Join-Path -Path $script:programData -ChildPath 'AnyDesk\AnyDesk.exe'
+        Join-Path -Path $script:programFilesX86 -ChildPath 'AnyDesk\AnyDesk.exe'
+        Join-Path -Path $script:programFiles -ChildPath 'AnyDesk\AnyDesk.exe'
+    )
+
+    $executablePath = $null
+    foreach ($path in $pathsToCheck) {
+        if (Test-Path $path) {
+            $executablePath = $path
+            break
+        }
+    }
+
+    if (-not $executablePath) {
         Write-Warning 'AnyDesk executable not found.'
         return $null
     }
-    try {
-        $status = (& $executablePath --get-status 2>&1 | Out-String).Trim()
-        $id = (& $executablePath --get-id 2>&1 | Out-String).Trim()
-    } catch {
-        Write-Warning "Failed to get AnyDesk information. $($_.Exception.Message)"
-        return $null
+
+    $attemptDelay = 3
+    $maxAttempts = 20 
+
+    for ($i = 1; $i -le $maxAttempts; $i++) {
+        try {
+            $status = (& $executablePath --get-status 2>&1 | Out-String).Trim()
+            $id = (& $executablePath --get-id 2>&1 | Out-String).Trim()
+
+            if (-not [string]::IsNullOrWhiteSpace($id) -and $id -ne "0" -and $status -match 'online') {
+                return @{ Status = $status; ID = $id; ExePath = $executablePath }
+            } else {
+                if ($status -ne 'online' -and -not [string]::IsNullOrWhiteSpace($id)) {
+                    throw "AnyDesk has ID but status is '$status' (waiting for online)"
+                }
+                throw "AnyDesk service is not ready yet. ID: '$id', Status: '$status'"
+            }
+        }
+        catch {
+            if ($i -eq $maxAttempts) {
+                Write-Warning "Failed to get AnyDesk info after 1 minute."
+            } else {
+                Write-Host "Waiting to obtain an ID... ($i/$maxAttempts)" -ForegroundColor Gray
+                Start-Sleep -Seconds $attemptDelay
+            }
+        }
     }
-    return @{ Status = $status; ID = $id }
+    return $null
 }
 
 function Display-AnyDeskStatus {
@@ -281,8 +342,8 @@ function Display-AnyDeskStatus {
     )
     if ($StatusInfo) {
         if ($StatusInfo.ID) {
-            Write-Host "AnyDesk ID: $($StatusInfo.ID)" -ForegroundColor Blue
             Write-Host "AnyDesk status: $($StatusInfo.Status)" -ForegroundColor Blue
+            Write-Host "AnyDesk ID: $($StatusInfo.ID)" -ForegroundColor Blue
         }
     } else {
         Write-Host 'Failed to get AnyDesk status.' -ForegroundColor Red
@@ -290,39 +351,54 @@ function Display-AnyDeskStatus {
 }
 
 Stop-AnyDeskProcess
-Start-Sleep -Seconds 2
-Remove-Folder -Path $pathAppData -Description "AnyDesk in AppData\Roaming"
-Start-Sleep -Seconds 2
-Uninstall-App -Path $pathProgramFiles -Description 'Program Files (x86)'
-Start-Sleep -Seconds 3
-Uninstall-App -Path $pathProgramData -Description 'ProgramData'
-Start-Sleep -Seconds 3
+
+Remove-Folder -Path $pathAppDataRoaming -Description "AnyDesk in AppData\Roaming"
+
+$pathPFX86_Exe = Join-Path -Path $programFilesX86 -ChildPath 'AnyDesk\AnyDesk.exe'
+Uninstall-App -Path $pathPFX86_Exe -Description 'Program Files (x86)'
+
+$pathPD_Exe = Join-Path -Path $programData -ChildPath 'AnyDesk\AnyDesk.exe'
+Uninstall-App -Path $pathPD_Exe -Description 'ProgramData'
+
 Remove-AnyDeskFolders
-Start-Sleep -Seconds 5
-Write-Host 'Waiting a few seconds and starting AnyDesk installation...'
-Start-Sleep -Seconds 5
+
+$null = Repair-SystemTime
+
+Write-Host 'Starting AnyDesk installation...'
+
+if (-not (Test-Path -Path $distAD)) {
+    Write-Host "AnyDesk installer not found ($distAD). Trying to download..." -ForegroundColor Yellow
+    try {
+        Invoke-RobustDownload -Uri $anyDeskUrl -OutFile $distAD -DisplayName 'AnyDesk Installer'
+    }
+    catch {
+        Write-Error "Failed to download AnyDesk: $($_.Exception.Message)"
+    }
+}
 
 $isInstalled = Install-AnyDesk
 
 if ($isInstalled) {
-    Write-Host 'Waiting a couple of seconds after AnyDesk installation...'
-    Start-Sleep -Seconds 10
     $statusInfo = Get-AnyDeskInfo
     if ($statusInfo) {
         Display-AnyDeskStatus -StatusInfo $statusInfo
         "AnyDesk ID:" | Out-File -FilePath "$PSScriptRoot\fix_AD.txt" -Encoding UTF8
         $statusInfo.ID | Out-File -FilePath "$PSScriptRoot\fix_AD.txt" -Append -Encoding UTF8
-        Write-Host "AnyDesk ID ($($statusInfo.ID)) has been written to $PSScriptRoot\fix_AD.txt"
-        $result = [System.Windows.Forms.MessageBox]::Show('Set password for AnyDesk?', '', 'YesNo', 'Question')
-        if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
-            $pathAD = Join-Path -Path $env:ProgramData -ChildPath 'AnyDesk\AnyDesk.exe'
-            $pass = Generate-SecurePassword  -IncludeCapitalLetters -IncludeNumbers -IncludeSpecialCharacters
-            $pass | & $pathAD --set-password
-            Add-Content -Path "$PSScriptRoot\fix_AD.txt" -Value 'AnyDesk password:'
-            Add-Content -Path "$PSScriptRoot\fix_AD.txt" -Value "$pass" -NoNewline
-            Write-Host "`nAnyDesk password is:`n"
-            Write-Host "$pass" -ForegroundColor DarkRed
-            Write-Host "`nit is also saved here: '$PSScriptRoot\fix_AD.txt'`n"
+        Write-Host "ID saved to file $PSScriptRoot\fix_AD.txt"
+        
+        if ([Environment]::UserInteractive) {
+            $result = [System.Windows.Forms.MessageBox]::Show('Set password for AnyDesk?', '', 'YesNo', 'Question')
+            if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
+                $pass = Generate-SecurePassword
+                $pass | & $statusInfo.ExePath --set-password
+                Add-Content -Path "$PSScriptRoot\fix_AD.txt" -Value 'AnyDesk password:'
+                Add-Content -Path "$PSScriptRoot\fix_AD.txt" -Value "$pass" -NoNewline
+                Write-Host 'AnyDesk password is:'
+                Write-Host "$pass" -ForegroundColor DarkRed
+                Write-Host "it is also saved here: '$PSScriptRoot\fix_AD.txt'"
+            }
+        } else {
+            Write-Host "Non-interactive session detected. Skipping password dialog." -ForegroundColor Yellow
         }
     }
 } else {
