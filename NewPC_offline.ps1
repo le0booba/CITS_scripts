@@ -544,20 +544,21 @@ else {
     Write-Warning 'Skipping AnyDesk installation: Installer not found.'
 }
 
-$questionApplyTweaks = [System.Windows.Forms.MessageBox]::Show('Apply UI tweaks?', 'Confirm UI Tweaks', 'YesNo', 'Question')
-if ($questionApplyTweaks -eq 'Yes') {
-    $uiTweaksScriptFile = 'ApplyUI-tweaks.ps1'
-    $uiTweaksScriptPath = Join-Path $PSScriptRoot $uiTweaksScriptFile
-    if (Test-Path -Path $uiTweaksScriptPath -PathType Leaf) {
+$uiTweaksScriptFile = 'ApplyUI-tweaks.ps1'
+$uiTweaksScriptPath = Join-Path $PSScriptRoot $uiTweaksScriptFile
+
+if (Test-Path -Path $uiTweaksScriptPath -PathType Leaf) {
+    $questionApplyTweaks = [System.Windows.Forms.MessageBox]::Show('Apply UI tweaks?', 'Confirm UI Tweaks', 'YesNo', 'Question')
+    if ($questionApplyTweaks -eq 'Yes') {
         & powershell.exe -ExecutionPolicy Bypass -File $uiTweaksScriptPath
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Script '$uiTweaksScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
         }
         $needRestart = $true
     }
-    else {
-        Write-Warning "Skipping UI tweaks: Script '$uiTweaksScriptFile' not found in '$PSScriptRoot'"
-    }
+}
+else {
+    Write-Warning "Skipping UI tweaks: Script '$uiTweaksScriptFile' not found in '$PSScriptRoot'"
 }
 
 $inventoryScriptPath = Join-Path $PSScriptRoot 'Get-PCInventory.ps1'
