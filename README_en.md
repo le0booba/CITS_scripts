@@ -59,8 +59,14 @@
 ```json
 {
   "appRemoval": {
-    "Win11": ["App.Name1", "App.Name2"],
-    "Win10": ["App.Name3", "App.Name4"]
+    "Win11": [
+        "App.Name1",
+        "App.Name2"
+    ],
+    "Win10": [
+        "App.Name3",
+        "App.Name4"
+    ]
   },
   "registrySettings": {
     "SettingName": 0,

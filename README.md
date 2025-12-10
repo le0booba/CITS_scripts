@@ -1,12 +1,10 @@
-## CITS скрипты
+## CITS scripts
 
 <div align="center">
 
-Скачать последнюю версию скриптов можно [⏬ по этой ссылке ⏬](https://github.com/le0booba/CITS_scripts/releases/latest)
+Скачать последнюю версию скриптов можно [по этой ссылке](https://github.com/le0booba/CITS_scripts/releases/latest)
 
 </div>
-
----
 
 ### 🛠 Настройка и использование
 
@@ -67,8 +65,14 @@
 ```json
 {
   "appRemoval": {
-    "Win11": ["App.Name1", "App.Name2"],
-    "Win10": ["App.Name3", "App.Name4"]
+    "Win11": [
+        "App.Name1",
+        "App.Name2"
+    ],
+    "Win10": [
+        "App.Name3",
+        "App.Name4"
+    ]
   },
   "registrySettings": {
     "SettingName": 0,
