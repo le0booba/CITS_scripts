@@ -306,30 +306,30 @@ if ($configLoaded) {
     }
 }
 
-$questionRemoveOneDrive = [System.Windows.Forms.MessageBox]::Show('Delete OneDrive?', '', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
-if ($questionRemoveOneDrive -eq 'Yes') {
-    Write-Host "`n        ═════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host '        ║                                                   ║' -ForegroundColor DarkCyan
-    Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
-    Write-Host 'Removing OneDrive ... [ ' -NoNewline -ForegroundColor Magenta
-    Write-Host 'UninstallOneDrive.ps1' -NoNewline -ForegroundColor Blue
-    Write-Host ' ]' -NoNewline -ForegroundColor Magenta
-    Write-Host '  ║' -NoNewline -ForegroundColor DarkCyan
-    Write-Host "`n        ║  " -NoNewline -ForegroundColor DarkCyan
-    Write-Host '                                                 ║' -ForegroundColor DarkCyan
-    Write-Host "        ═════════════════════════════════════════════════════`n" -ForegroundColor DarkCyan
+$oneDriveScriptFile = 'UninstallOneDrive.ps1'
+$oneDriveScriptPath = Join-Path $PSScriptRoot $oneDriveScriptFile
+if (Test-Path -Path $oneDriveScriptPath -PathType Leaf) {
+    $questionRemoveOneDrive = [System.Windows.Forms.MessageBox]::Show('Delete OneDrive?', '', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($questionRemoveOneDrive -eq 'Yes') {
+        Write-Host "`n        ═════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+        Write-Host '        ║                                                   ║' -ForegroundColor DarkCyan
+        Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+        Write-Host 'Removing OneDrive ... [ ' -NoNewline -ForegroundColor Magenta
+        Write-Host 'UninstallOneDrive.ps1' -NoNewline -ForegroundColor Blue
+        Write-Host ' ]' -NoNewline -ForegroundColor Magenta
+        Write-Host '  ║' -NoNewline -ForegroundColor DarkCyan
+        Write-Host "`n        ║  " -NoNewline -ForegroundColor DarkCyan
+        Write-Host '                                                 ║' -ForegroundColor DarkCyan
+        Write-Host "        ═════════════════════════════════════════════════════`n" -ForegroundColor DarkCyan
 
-    $oneDriveScriptFile = 'UninstallOneDrive.ps1'
-    $oneDriveScriptPath = Join-Path $PSScriptRoot $oneDriveScriptFile
-    if (Test-Path -Path $oneDriveScriptPath -PathType Leaf) {
         & powershell.exe -ExecutionPolicy Bypass -File $oneDriveScriptPath
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Script '$oneDriveScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
         }
     }
-    else {
-        Write-Warning "Skipping OneDrive removal: Script '$oneDriveScriptFile' not found in '$PSScriptRoot'"
-    }
+}
+else {
+    Write-Warning "Skipping OneDrive removal: Script '$oneDriveScriptFile' not found in '$PSScriptRoot'"
 }
 
 Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan
@@ -761,15 +761,15 @@ if ($questionApplyTweaks -eq 'Yes') {
     }
 }
 
-$result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
-if ($result -eq 'Yes') {
-    $inventoryScriptPath = Join-Path $PSScriptRoot 'Get-PCInventory.ps1'
-    if (Test-Path $inventoryScriptPath) {
+$inventoryScriptPath = Join-Path $PSScriptRoot 'Get-PCInventory.ps1'
+if (Test-Path $inventoryScriptPath) {
+    $result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
+    if ($result -eq 'Yes') {
         & $inventoryScriptPath -NewComputerName $newComputerName -FileNameBase $fileNameBase -ScriptRoot $PSScriptRoot
     }
-    else {
-        Write-Warning "Inventory script 'Get-PCInventory.ps1' not found. Skipping information collection."
-    }
+}
+else {
+    Write-Warning "Inventory script 'Get-PCInventory.ps1' not found. Skipping information collection."
 }
 
 Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan

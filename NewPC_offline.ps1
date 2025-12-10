@@ -71,179 +71,51 @@ if ($windowsVersion -notlike '22*' -and $windowsVersion -ne 'Unknown') {
     }
 }
 
-function New-SecurePassword {
-    $pwgen_CONSONANT = 1
-    $pwgen_VOWEL = (1 -shl 1)
-    $pwgen_DIPTHONG = (1 -shl 2)
-    $pwgen_NOT_FIRST = (1 -shl 3)
+function Generate-SecurePassword {
     
-    $genpas_spec_symbols = '!@#$%*()-_'
-    
-    $pwgen_ELEMENTS = @(
-        [PSCustomObject]@{ Syllable = 'a';  Flags = ($pwgen_VOWEL) }
-        [PSCustomObject]@{ Syllable = 'ae'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'ah'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'b';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'c';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'ch'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'd';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'e';  Flags = ($pwgen_VOWEL) }
-        [PSCustomObject]@{ Syllable = 'ee'; Flags = ($pwgen_VOWEL -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'f';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'g';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'gh'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST) }
-        [PSCustomObject]@{ Syllable = 'h';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'j';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'k';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'm';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'n';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'ng'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG -bor $pwgen_NOT_FIRST) }
-        [PSCustomObject]@{ Syllable = 'p';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'ph'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'qu'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'r';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 's';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'sh'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 't';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'th'; Flags = ($pwgen_CONSONANT -bor $pwgen_DIPTHONG) }
-        [PSCustomObject]@{ Syllable = 'u';  Flags = ($pwgen_VOWEL) }
-        [PSCustomObject]@{ Syllable = 'v';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'w';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'x';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'y';  Flags = ($pwgen_CONSONANT) }
-        [PSCustomObject]@{ Syllable = 'z';  Flags = ($pwgen_CONSONANT) }
-    )
-    
-    function Get-SecureRandom {
-        param(
-            [int]$Minimum = 0,
-            [int]$Maximum
-        )
-    
-        if ($Minimum -ge $Maximum) {
-            return $Minimum
-        }
+    function Get-SecureInt {
+        param([int]$Maximum)
+        
+        if ($Maximum -le 0) { return 0 }
         
         $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-        $range = $Maximum - $Minimum
         $bytes = New-Object byte[] 4
-    
+        
         while ($true) {
             $rng.GetBytes($bytes)
             $rand = [System.BitConverter]::ToUInt32($bytes, 0)
-            $limit = ([uint32]::MaxValue / $range) * $range
+            
+            $limit = [uint32]::MaxValue - ([uint32]::MaxValue % $Maximum)
+            
             if ($rand -lt $limit) {
-                return ($rand % $range) + $Minimum
+                return ($rand % $Maximum)
             }
         }
     }
+
+    $consonants = @('b','c','d','f','g','h','k','m','n','p','r','s','t','v','w','x','z')
+    $vowels     = @('a','e','o','u')
     
-    function pwgen_generate {
-        param(
-            [int]$pwlen,
-            [bool]$inc_capital,
-            [bool]$inc_number,
-            [bool]$inc_spec
-        )
-    
-        $capsCount = if ($inc_capital) { 1 } else { 0 }
-        $digitsCount = if ($inc_number) { 1 } else { 0 }
-        $specialsCount = if ($inc_spec) { 1 } else { 0 }
-    
-        if (($capsCount + $digitsCount + $specialsCount) -gt $pwlen) {
-            throw "Sum of required characters exceeds password length."
-        }
-    
-        while ($true) {
-            $phonetic_base = ''
-            $prev = 0
-            $isFirst = $true
-            $shouldBe = if ((Get-SecureRandom -Maximum 2) -eq 0) { $pwgen_VOWEL } else { $pwgen_CONSONANT }
-    
-            while ($phonetic_base.Length -lt $pwlen) {
-                $possibleElements = foreach ($element in $pwgen_ELEMENTS) {
-                    if (($element.Flags -band $shouldBe) -eq 0) { continue }
-                    if ($isFirst -and ($element.Flags -band $pwgen_NOT_FIRST)) { continue }
-                    if (($prev -band $pwgen_VOWEL) -and ($element.Flags -band $pwgen_VOWEL) -and ($element.Flags -band $pwgen_DIPTHONG)) { continue }
-                    if (($phonetic_base.length + $element.Syllable.length) -gt $pwlen) { continue }
-                    $element
-                }
-                
-                if ($possibleElements.Count -eq 0) {
-                     $shouldBe = if ($shouldBe -eq $pwgen_CONSONANT) { $pwgen_VOWEL } else { $pwgen_CONSONANT }
-                     $prev = 0
-                     continue
-                }
-    
-                $selected = $possibleElements[(Get-SecureRandom -Maximum $possibleElements.Count)]
-                $phonetic_base += $selected.Syllable
-                $flags = $selected.Flags
-                $prev = $flags
-                $isFirst = $false
-    
-                if ($shouldBe -eq $pwgen_CONSONANT) {
-                    $shouldBe = $pwgen_VOWEL
-                }
-                else {
-                    if (($prev -band $pwgen_VOWEL) -or ($flags -band $pwgen_DIPTHONG) -or ((Get-SecureRandom -Maximum 10) -gt 3)) {
-                        $shouldBe = $pwgen_CONSONANT
-                    }
-                    else {
-                        $shouldBe = $pwgen_VOWEL
-                    }
-                }
-            }
-            
-            if ($phonetic_base.Length -ne $pwlen) { continue }
-            
-            $passwordChars = $phonetic_base.ToCharArray()
-            $availableIndices = [System.Collections.Generic.List[int]]::new()
-            for ($i = 0; $i -lt $passwordChars.Length; $i++) {
-                if ($passwordChars[$i] -match '[a-z]') {
-                    $availableIndices.Add($i)
-                }
-            }
-    
-            if ($availableIndices.Count -lt ($capsCount + $digitsCount + $specialsCount)) {
-                continue
-            }
-            
-            for ($i = $availableIndices.Count - 1; $i -gt 0; $i--) {
-                $j = Get-SecureRandom -Maximum ($i + 1)
-                $temp = $availableIndices[$i]
-                $availableIndices[$i] = $availableIndices[$j]
-                $availableIndices[$j] = $temp
-            }
-    
-            $currentIndex = 0
-            
-            for ($i = 0; $i -lt $specialsCount; $i++) {
-                $pos = $availableIndices[$currentIndex++]
-                $charIndex = Get-SecureRandom -Maximum $genpas_spec_symbols.Length
-                $passwordChars[$pos] = $genpas_spec_symbols[$charIndex]
-            }
-    
-            for ($i = 0; $i -lt $digitsCount; $i++) {
-                $pos = $availableIndices[$currentIndex++]
-                $passwordChars[$pos] = (Get-SecureRandom -Maximum 10).ToString()
-            }
-    
-            for ($i = 0; $i -lt $capsCount; $i++) {
-                $pos = $availableIndices[$currentIndex++]
-                $passwordChars[$pos] = [char]::ToUpper($passwordChars[$pos])
-            }
-            
-            $finalPassword = -join $passwordChars
-            
-            if ($specialsCount -gt 0 -and $genpas_spec_symbols.Contains($finalPassword[0])) {
-                continue
-            }
-            
-            return $finalPassword
-        }
+    $GetRandomChar = {
+        param($List)
+        $Index = Get-SecureInt -Maximum $List.Count
+        return $List[$Index]
     }
     
-    pwgen_generate -pwlen 9 -inc_capital $true -inc_number $true -inc_spec $true
+    $char1 = (&$GetRandomChar $consonants).ToString().ToUpper()
+    $char2 = (&$GetRandomChar $vowels)
+    $char3 = (&$GetRandomChar $consonants)
+    
+    $sep = "-"
+    
+    $char4 = (&$GetRandomChar $consonants)
+    $char5 = (&$GetRandomChar $vowels)
+    $char6 = (&$GetRandomChar $consonants)
+    $char7 = (&$GetRandomChar $consonants)
+    
+    $digit = (Get-SecureInt -Maximum 10).ToString()
+
+    return "$char1$char2$char3$sep$char4$char5$char6$char7$digit"
 }
 
 if ($configLoaded) {
@@ -316,30 +188,30 @@ if ($configLoaded) {
     }
 }
 
-$questionRemoveOneDrive = [System.Windows.Forms.MessageBox]::Show('Delete OneDrive?', '', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
-if ($questionRemoveOneDrive -eq 'Yes') {
-    Write-Host "`n        ═════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host '        ║                                                   ║' -ForegroundColor DarkCyan
-    Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
-    Write-Host 'Removing OneDrive ... [ ' -NoNewline -ForegroundColor Magenta
-    Write-Host 'UninstallOneDrive.ps1' -NoNewline -ForegroundColor Blue
-    Write-Host ' ]' -NoNewline -ForegroundColor Magenta
-    Write-Host '  ║' -NoNewline -ForegroundColor DarkCyan
-    Write-Host "`n        ║  " -NoNewline -ForegroundColor DarkCyan
-    Write-Host '                                                 ║' -ForegroundColor DarkCyan
-    Write-Host "        ═════════════════════════════════════════════════════`n" -ForegroundColor DarkCyan
+$oneDriveScriptFile = 'UninstallOneDrive.ps1'
+$oneDriveScriptPath = Join-Path $PSScriptRoot $oneDriveScriptFile
+if (Test-Path -Path $oneDriveScriptPath -PathType Leaf) {
+    $questionRemoveOneDrive = [System.Windows.Forms.MessageBox]::Show('Delete OneDrive?', '', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($questionRemoveOneDrive -eq 'Yes') {
+        Write-Host "`n        ═════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+        Write-Host '        ║                                                   ║' -ForegroundColor DarkCyan
+        Write-Host '        ║  ' -NoNewline -ForegroundColor DarkCyan
+        Write-Host 'Removing OneDrive ... [ ' -NoNewline -ForegroundColor Magenta
+        Write-Host 'UninstallOneDrive.ps1' -NoNewline -ForegroundColor Blue
+        Write-Host ' ]' -NoNewline -ForegroundColor Magenta
+        Write-Host '  ║' -NoNewline -ForegroundColor DarkCyan
+        Write-Host "`n        ║  " -NoNewline -ForegroundColor DarkCyan
+        Write-Host '                                                 ║' -ForegroundColor DarkCyan
+        Write-Host "        ═════════════════════════════════════════════════════`n" -ForegroundColor DarkCyan
 
-    $oneDriveScriptFile = 'UninstallOneDrive.ps1'
-    $oneDriveScriptPath = Join-Path $PSScriptRoot $oneDriveScriptFile
-    if (Test-Path -Path $oneDriveScriptPath -PathType Leaf) {
         & powershell.exe -ExecutionPolicy Bypass -File $oneDriveScriptPath
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "Script '$oneDriveScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
         }
     }
-    else {
-        Write-Warning "Skipping OneDrive removal: Script '$oneDriveScriptFile' not found in '$PSScriptRoot'"
-    }
+}
+else {
+    Write-Warning "Skipping OneDrive removal: Script '$oneDriveScriptFile' not found in '$PSScriptRoot'"
 }
 
 Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan
@@ -367,20 +239,24 @@ do {
         Write-Host " [ *! ] Keeping current computer name: $($currentComputerName)" -ForegroundColor Yellow
         break
     }
+    if ([string]::IsNullOrWhiteSpace($inputName)) {
+        [System.Windows.Forms.MessageBox]::Show('Computer name cannot be empty.', 'Invalid Name', 'OK', 'Error')
+        continue
+    }
     if ($inputName -match '[^a-zA-Z0-9\-_]') {
-        [System.Windows.Forms.MessageBox]::Show('Computer name contains invalid characters. Use only letters, numbers, hyphens and underscores.', 'Invalid Name', 'OK', 'Error')
+        [void][System.Windows.Forms.MessageBox]::Show('Computer name contains invalid characters. Use only letters, numbers, hyphens and underscores.', 'Invalid Name', 'OK', 'Error')
         continue
     }
     if ($inputName -match '^-|-$' -or $inputName -match '^_|_$') {
-        [System.Windows.Forms.MessageBox]::Show('Computer name cannot start or end with a hyphen or underscore.', 'Invalid Name', 'OK', 'Error')
+        [void][System.Windows.Forms.MessageBox]::Show('Computer name cannot start or end with a hyphen or underscore.', 'Invalid Name', 'OK', 'Error')
         continue
     }
     if ($inputName -match '^[_\-]+$' -or $inputName -match '^\d+$') {
-        [System.Windows.Forms.MessageBox]::Show('Computer name cannot consist only of underscores, hyphens, or numbers.', 'Invalid Name', 'OK', 'Error')
+        [void][System.Windows.Forms.MessageBox]::Show('Computer name cannot consist only of underscores, hyphens, or numbers.', 'Invalid Name', 'OK', 'Error')
         continue
     }
     if ($inputName.Length -gt 15) {
-        [System.Windows.Forms.MessageBox]::Show('Computer name is too long (maximum 15 characters).', 'Invalid Name', 'OK', 'Error')
+        [void][System.Windows.Forms.MessageBox]::Show('Computer name is too long (maximum 15 characters).', 'Invalid Name', 'OK', 'Error')
         continue
     }
     if ($inputName -eq $currentComputerName) {
@@ -418,7 +294,7 @@ if (-not $user) {
         $adminCim = Get-CimInstance -ClassName Win32_UserAccount -Filter "SID LIKE '%-500'"
         $adminUser = Get-LocalUser -Name $adminCim.Name
         
-        $password = New-SecurePassword
+        $password = Generate-SecurePassword
         $securePassword = ConvertTo-SecureString -String $password -AsPlainText -Force
         
         $adminUser | Set-LocalUser -Password $securePassword
@@ -545,7 +421,7 @@ $dist7z = Get-ChildItem -Path $PSScriptRoot -Filter '7z*.msi' -File
 
 if ($dist7z) {
     try {
-        $msiArgs = "/i `"$($dist7z.FullName)`" /qn /norestart"
+        $msiArgs = "/i `"$($dist7z.FullName)`" /qr /norestart"
         $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $msiArgs -Wait -PassThru
         if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) {
             throw "7-Zip installation failed with exit code: $($process.ExitCode)"
@@ -594,24 +470,16 @@ if ($is7zInstalled) {
 
 function Find-AnyDeskID {
     $confPath = 'C:\ProgramData\AnyDesk\system.conf'
-    if (Test-Path $confPath) {
-        $maxAttempts = 5
-        $attemptDelay = 2
-        for ($i = 0; $i -lt $maxAttempts; $i++) {
-            try {
-                $idLine = Get-Content $confPath -ErrorAction Stop | Select-String -Pattern 'ad.anynet.id='
-                if ($idLine) {
-                    return ($idLine -split '=')[1].Trim()
-                }
-                break
-            }
-            catch {
-                if ($i -eq ($maxAttempts - 1)) {
-                    Write-Warning "Failed to read AnyDesk config after $maxAttempts attempts: $($_.Exception.Message)"
-                }
-                Start-Sleep -Seconds $attemptDelay
-            }
+    if (-not (Test-Path $confPath)) { return $null }
+    try {
+        $content = Get-Content $confPath -ErrorAction Stop
+        $idLine = $content | Select-String -Pattern 'ad.anynet.id='
+        if ($idLine) {
+            return ($idLine -split '=')[1].Trim()
         }
+    }
+    catch {
+        Write-Verbose "Could not read config: $($_.Exception.Message)"
     }
     return $null
 }
@@ -624,7 +492,7 @@ if (Test-Path -Path $anyDeskPath -PathType Leaf) {
     Remove-Item -Path "${env:ProgramFiles(x86)}\AnyDesk", 'C:\ProgramData\AnyDesk' -Recurse -Force -ErrorAction SilentlyContinue
     Start-Process $anyDeskPath '--install "C:\ProgramData\AnyDesk" --start-with-win --create-shortcuts --create-desktop-icon' -Wait
     
-    $pass = New-SecurePassword
+    $pass = Generate-SecurePassword
 
     $timeout = 60; $stopwatch = [System.Diagnostics.Stopwatch]::StartNew(); $anydeskID = $null
     Write-Host "Waiting for AnyDesk to obtain a valid ID (Timeout: $timeout seconds)..." -ForegroundColor Cyan
@@ -692,15 +560,15 @@ if ($questionApplyTweaks -eq 'Yes') {
     }
 }
 
-$result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
-if ($result -eq 'Yes') {
-    $inventoryScriptPath = Join-Path $PSScriptRoot 'Get-PCInventory.ps1'
-    if (Test-Path $inventoryScriptPath) {
+$inventoryScriptPath = Join-Path $PSScriptRoot 'Get-PCInventory.ps1'
+if (Test-Path $inventoryScriptPath) {
+    $result = [System.Windows.Forms.MessageBox]::Show('Collect info about this PC to file?', 'Confirm Collection', 'YesNo', 'Question')
+    if ($result -eq 'Yes') {
         & $inventoryScriptPath -NewComputerName $newComputerName -FileNameBase $fileNameBase -ScriptRoot $PSScriptRoot
     }
-    else {
-        Write-Warning "Inventory script 'Get-PCInventory.ps1' not found. Skipping information collection."
-    }
+}
+else {
+    Write-Warning "Inventory script 'Get-PCInventory.ps1' not found. Skipping information collection."
 }
 
 Write-Host "`n        ═════════════════════════" -ForegroundColor DarkCyan
