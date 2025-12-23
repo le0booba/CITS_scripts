@@ -489,18 +489,19 @@ if (Test-Path -Path $anyDeskPath -PathType Leaf) {
     
     $pass = Generate-SecurePassword
 
-    $timeout = 60; $stopwatch = [System.Diagnostics.Stopwatch]::StartNew(); $anydeskID = $null
+    $timeout = 60
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $anydeskID = $null
     Write-Host "Waiting for AnyDesk to obtain a valid ID (Timeout: $timeout seconds)..." -ForegroundColor Cyan
-    
+
     while ($stopwatch.Elapsed.TotalSeconds -lt $timeout) {
         $anydeskID = Find-AnyDeskID
         if ($anydeskID) {
             Write-Host "`nAnyDesk ID obtained: $anydeskID" -ForegroundColor Cyan
             break
         }
-        
-        Write-Host ("Waiting... ({0:00}s remaining)" -f ($timeout - $stopwatch.Elapsed.TotalSeconds)) -NoNewline
-        Write-Host "`r" -NoNewline
+        $remaining = [math]::Round($timeout - $stopwatch.Elapsed.TotalSeconds)
+        Write-Host "Waiting... ($remaining s remaining)   `r" -NoNewline
         Start-Sleep -Seconds 3
     }
     $stopwatch.Stop()
