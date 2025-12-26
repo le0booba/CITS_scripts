@@ -86,50 +86,52 @@ if ($windowsVersion -notlike '22*' -and $windowsVersion -ne 'Unknown') {
 }
 
 function Generate-SecurePassword {
-    
+
     function Get-SecureInt {
         param([int]$Maximum)
-        
+
         if ($Maximum -le 0) { return 0 }
-        
+
         $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
         $bytes = New-Object byte[] 4
-        
+
         while ($true) {
             $rng.GetBytes($bytes)
             $rand = [System.BitConverter]::ToUInt32($bytes, 0)
-            
             $limit = [uint32]::MaxValue - ([uint32]::MaxValue % $Maximum)
-            
             if ($rand -lt $limit) {
                 return ($rand % $Maximum)
             }
         }
     }
 
-    $consonants = @('b','c','d','f','g','h','k','m','n','p','r','s','t','v','w','x','z')
-    $vowels     = @('a','e','o','u')
-    
-    $GetRandomChar = {
-        param($List)
-        $Index = Get-SecureInt -Maximum $List.Count
-        return $List[$Index]
-    }
-    
-    $char1 = (&$GetRandomChar $consonants).ToString().ToUpper()
-    $char2 = (&$GetRandomChar $vowels)
-    $char3 = (&$GetRandomChar $consonants)
-    
-    $sep = "-"
-    
-    $char4 = (&$GetRandomChar $consonants)
-    $char5 = (&$GetRandomChar $vowels)
-    $char6 = (&$GetRandomChar $consonants)
-    $char7 = (&$GetRandomChar $consonants)
-    
-    $digit = (Get-SecureInt -Maximum 10).ToString()
+    $words = @(
+        'apple','river','stone','cloud','green','night','sun','mouse','table','forest',
+        'water','paper','glass','light','snow','fire','wind','tree','road','field'
+    )
 
-    return "$char1$char2$char3$sep$char4$char5$char6$char7$digit"
+    $letters = @(
+        'a','b','c','d','e','f','h','k','m','n','o','p','q','r','s','t','u','v','w','x','y','z'
+    )
+
+    $GetRandomWord = {
+        $words[ $(Get-SecureInt -Maximum $words.Count) ]
+    }
+
+    $GetRandomLetter = {
+        $letters[ $(Get-SecureInt -Maximum $letters.Count) ]
+    }
+
+    $word = &$GetRandomWord
+    $wordCap = $word.Substring(0,1).ToUpper() + $word.Substring(1)
+
+    $l1 = &$GetRandomLetter
+    $l2 = &$GetRandomLetter
+
+    $d1 = Get-SecureInt -Maximum 10
+    $d2 = Get-SecureInt -Maximum 10
+
+    return "$wordCap-$l1$l2$d1$d2"
 }
 
 function Invoke-RobustDownload {
