@@ -2,7 +2,7 @@
 
 # CITS Scripts
 
-[Скачать последнюю версию](https://github.com/le0booba/CITS_scripts/releases/latest)
+[СКАЧАТЬ ПОСЛЕДНЮЮ ВЕРСИЮ](https://github.com/le0booba/CITS_scripts/releases/latest)
 
 ---
 
