@@ -16,7 +16,7 @@ function Invoke-RobustDownload {
         [Parameter(Mandatory = $true)]
         [string]$OutFile,
         [string]$DisplayName,
-        [int]$TimeoutSeconds = 100
+        [int]$TimeoutSeconds = 60
     )
     
     if (-not $DisplayName) {
@@ -25,6 +25,7 @@ function Invoke-RobustDownload {
 
     try {
         Import-Module BitsTransfer -ErrorAction Stop
+        
         Write-Host "Starting reliable download for '$DisplayName' using BITS..."
         $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -36,7 +37,7 @@ function Invoke-RobustDownload {
                 $status += ' (Network issue, retrying...)'
             }
             Write-Progress -Activity 'Downloading Files' -Status $status -PercentComplete $percentComplete
-            Start-Sleep -Milliseconds 500
+            Start-Sleep -Seconds 1
         }
         
         $stopwatch.Stop()
@@ -65,8 +66,15 @@ function Invoke-RobustDownload {
         }
     }
     catch {
-        Write-Warning 'BITS module not found or failed. Falling back to robust Invoke-WebRequest method.'
+        if ($_.Exception.Message -match 'module' -or $_.FullyQualifiedErrorId -match 'ModuleNotFound') {
+            Write-Warning "BITS module not found or failed to load. System error: $($_.Exception.Message)"
+        }
+        else {
+            Write-Warning "BITS download attempt failed. Reason: $($_.Exception.Message)"
+        }
         
+        Write-Host 'Falling back to robust Invoke-WebRequest method.' -ForegroundColor Gray
+
         try {
             Write-Host "Step 1: Getting file size for '$DisplayName'..."
             $response = Invoke-WebRequest -Uri $Uri -Method Head
@@ -270,7 +278,6 @@ function Install-AnyDesk {
             return $false
         }
     } else {
-        Write-Host 'AnyDesk installer not found in script folder.' -ForegroundColor DarkYellow
         return $false
     }
 }
@@ -367,7 +374,7 @@ $null = Repair-SystemTime
 Write-Host 'Starting AnyDesk installation...'
 
 if (-not (Test-Path -Path $distAD)) {
-    Write-Host "AnyDesk installer not found ($distAD). Trying to download..." -ForegroundColor Yellow
+    Write-Host "AnyDesk installer not found ($PSScriptRoot\). Trying to download..." -ForegroundColor Yellow
     try {
         Invoke-RobustDownload -Uri $anyDeskUrl -OutFile $distAD -DisplayName 'AnyDesk Installer'
     }

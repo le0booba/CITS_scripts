@@ -141,7 +141,7 @@ function Invoke-RobustDownload {
         [Parameter(Mandatory = $true)]
         [string]$OutFile,
         [string]$DisplayName,
-        [int]$TimeoutSeconds = 100
+        [int]$TimeoutSeconds = 60
     )
     
     if (-not $DisplayName) {
@@ -150,6 +150,7 @@ function Invoke-RobustDownload {
 
     try {
         Import-Module BitsTransfer -ErrorAction Stop
+        
         Write-Host "Starting reliable download for '$DisplayName' using BITS..."
         $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -190,8 +191,15 @@ function Invoke-RobustDownload {
         }
     }
     catch {
-        Write-Warning 'BITS module not found or failed. Falling back to robust Invoke-WebRequest method.'
+        if ($_.Exception.Message -match 'module' -or $_.FullyQualifiedErrorId -match 'ModuleNotFound') {
+            Write-Warning "BITS module not found or failed to load. System error: $($_.Exception.Message)"
+        }
+        else {
+            Write-Warning "BITS download attempt failed. Reason: $($_.Exception.Message)"
+        }
         
+        Write-Host 'Falling back to robust Invoke-WebRequest method.' -ForegroundColor Gray
+
         try {
             Write-Host "Step 1: Getting file size for '$DisplayName'..."
             $response = Invoke-WebRequest -Uri $Uri -Method Head
