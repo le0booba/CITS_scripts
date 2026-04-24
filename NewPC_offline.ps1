@@ -92,12 +92,12 @@ function Generate-SecurePassword {
     }
 
     $words = @(
-        'apple','river','stone','cloud','green','night','sun','mouse','table','forest',
-        'water','paper','glass','light','snow','fire','wind','tree','road','field'
+        'apple', 'river', 'stone', 'cloud', 'green', 'night', 'sun', 'mouse', 'table', 'forest',
+        'water', 'paper', 'glass', 'light', 'snow', 'fire', 'wind', 'tree', 'road', 'field'
     )
 
     $letters = @(
-        'a','b','c','d','e','f','h','k','m','n','o','p','q','r','s','t','u','v','w','x','y','z'
+        'a', 'b', 'c', 'd', 'e', 'f', 'h', 'k', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
     )
 
     $GetRandomWord = {
@@ -109,7 +109,7 @@ function Generate-SecurePassword {
     }
 
     $word = &$GetRandomWord
-    $wordCap = $word.Substring(0,1).ToUpper() + $word.Substring(1)
+    $wordCap = $word.Substring(0, 1).ToUpper() + $word.Substring(1)
 
     $l1 = &$GetRandomLetter
     $l2 = &$GetRandomLetter
@@ -347,7 +347,8 @@ try {
     if ((Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name 'HibernateEnabled') -eq 0) {
         $hibernateEnabled = $false
     }
-} catch {
+}
+catch {
     $hibernateEnabled = $false
 }
 

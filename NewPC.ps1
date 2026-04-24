@@ -106,12 +106,12 @@ function Generate-SecurePassword {
     }
 
     $words = @(
-        'apple','river','stone','cloud','green','night','sun','mouse','table','forest',
-        'water','paper','glass','light','snow','fire','wind','tree','road','field'
+        'apple', 'river', 'stone', 'cloud', 'green', 'night', 'sun', 'mouse', 'table', 'forest',
+        'water', 'paper', 'glass', 'light', 'snow', 'fire', 'wind', 'tree', 'road', 'field'
     )
 
     $letters = @(
-        'a','b','c','d','e','f','h','k','m','n','o','p','q','r','s','t','u','v','w','x','y','z'
+        'a', 'b', 'c', 'd', 'e', 'f', 'h', 'k', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
     )
 
     $GetRandomWord = {
@@ -123,7 +123,7 @@ function Generate-SecurePassword {
     }
 
     $word = &$GetRandomWord
-    $wordCap = $word.Substring(0,1).ToUpper() + $word.Substring(1)
+    $wordCap = $word.Substring(0, 1).ToUpper() + $word.Substring(1)
 
     $l1 = &$GetRandomLetter
     $l2 = &$GetRandomLetter
@@ -150,9 +150,10 @@ function Invoke-RobustDownload {
 
     try {
         Import-Module BitsTransfer -ErrorAction Stop
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         
         Write-Host "Starting reliable download for '$DisplayName' using BITS..."
-        $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous
+        $bitsJob = Start-BitsTransfer -Source $Uri -Destination $OutFile -DisplayName $DisplayName -Asynchronous -Priority Foreground
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         
         while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds -and $bitsJob.JobState -in ('Connecting', 'Transferring', 'TransientError')) {
@@ -473,7 +474,8 @@ try {
     if ((Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name 'HibernateEnabled') -eq 0) {
         $hibernateEnabled = $false
     }
-} catch {
+}
+catch {
     $hibernateEnabled = $false
 }
 
@@ -517,7 +519,8 @@ try {
     Restart-Service w32time -Force -ErrorAction Stop
     
     Write-Host ' [ ** ] Time Service configured (NTP/Auto + Peers updated)' -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Warning "Failed to configure Time Service: $($_.Exception.Message)"
 }
 
@@ -535,7 +538,8 @@ for ($i = 1; $i -le 3; $i++) {
 
 if ($timeSyncSuccess) {
     Write-Host ' [ ** ] Time synchronization successful' -ForegroundColor Green
-} else {
+}
+else {
     Write-Warning 'Time synchronization failed after 3 attempts.'
 }
 
@@ -594,16 +598,16 @@ else {
     $questionDownload7z = [System.Windows.Forms.MessageBox]::Show('7-Zip installer not found. Download it now?', '7-Zip Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
     if ($questionDownload7z -eq 'Yes') {
         try {
-            $root_url = 'https://www.7-zip.org'
-            $download_url = "$root_url/download.html"
-            $filename_pattern = '*7z*64.msi*'
-
-            $response = Invoke-WebRequest -Uri $download_url -ErrorAction Stop
-            $latest_release_filename = $response.Links.href | Where-Object { $_ -like $filename_pattern } | Select-Object -First 1
-            $latest_release_url = "$root_url/$latest_release_filename"
-            
+            $githubApiUrl = 'https://api.github.com/repos/ip7z/7zip/releases/latest'
+                    
+            $response = Invoke-WebRequest -Uri $githubApiUrl -UseBasicParsing -ErrorAction Stop
+            $releaseInfo = $response.Content | ConvertFrom-Json
+            $asset = $releaseInfo.assets | Where-Object { $_.name -like '*x64.msi' } | Select-Object -First 1
+                    
+            $latest_release_url = $asset.browser_download_url
+                    
             $script_folder = Split-Path -Parent $MyInvocation.MyCommand.Path
-            $destination_path = Join-Path -Path $script_folder -ChildPath (Split-Path -Leaf $latest_release_filename)
+            $destination_path = Join-Path -Path $script_folder -ChildPath $asset.name
 
             Invoke-RobustDownload -Uri $latest_release_url -OutFile $destination_path -DisplayName '7-Zip Installer'
 
