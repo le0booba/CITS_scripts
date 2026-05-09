@@ -1,4 +1,4 @@
-﻿Clear-Host
+Clear-Host
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -664,95 +664,110 @@ if ($is7zInstalled) {
     }
 }
 
-function Find-AnyDeskID {
-    $confPath = 'C:\ProgramData\AnyDesk\system.conf'
-    if (-not (Test-Path $confPath)) { return $null }
-    try {
-        $content = Get-Content $confPath -ErrorAction Stop
-        $idLine = $content | Select-String -Pattern 'ad.anynet.id='
-        if ($idLine) {
-            return ($idLine -split '=')[1].Trim()
+$ruDesktopScriptFile = 'RuDesktop.ps1'
+$ruDesktopScriptPath = Join-Path $PSScriptRoot $ruDesktopScriptFile
+if (Test-Path -Path $ruDesktopScriptPath -PathType Leaf) {
+    $questionInstallRuDesktop = [System.Windows.Forms.MessageBox]::Show('Install RuDesktop?', 'Confirm RuDesktop Installation', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($questionInstallRuDesktop -eq 'Yes') {
+        & powershell.exe -ExecutionPolicy Bypass -File $ruDesktopScriptPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Script '$ruDesktopScriptFile' may have encountered errors during execution (Exit Code: $LASTEXITCODE)."
         }
     }
-    catch {
-        Write-Verbose "Could not read config: $($_.Exception.Message)"
-    }
-    return $null
-}
-
-$anyDeskExe = 'AnyDesk.exe'
-$anyDeskPath = Join-Path $PSScriptRoot $anyDeskExe
-
-if (-not (Test-Path -Path $anyDeskPath -PathType Leaf)) {
-    $questionDownloadAnyDesk = [System.Windows.Forms.MessageBox]::Show('AnyDesk installer not found. Download it now?', 'AnyDesk Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
-    if ($questionDownloadAnyDesk -eq 'Yes') {
-        try {
-            $anyDeskUrl = 'https://download.anydesk.com/AnyDesk.exe'
-            Invoke-RobustDownload -Uri $anyDeskUrl -OutFile $anyDeskPath -DisplayName 'AnyDesk Installer'
-        }
-        catch {
-            Write-Warning "Error during AnyDesk download process: $($_.Exception.Message)"
-        }
-    }
-}
-
-if (Test-Path -Path $anyDeskPath -PathType Leaf) {
-    Start-Process $anyDeskPath '--silent --remove' -Wait
-    Remove-Item -Path "${env:ProgramFiles(x86)}\AnyDesk", 'C:\ProgramData\AnyDesk' -Recurse -Force -ErrorAction SilentlyContinue
-    Start-Process $anyDeskPath '--install "C:\ProgramData\AnyDesk" --start-with-win --create-shortcuts --create-desktop-icon' -Wait
-    
-    $pass = Generate-SecurePassword
-
-    $timeout = 60
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $anydeskID = $null
-    Write-Host "Waiting for AnyDesk to obtain a valid ID (Timeout: $timeout seconds)..." -ForegroundColor Cyan
-
-    while ($stopwatch.Elapsed.TotalSeconds -lt $timeout) {
-        $anydeskID = Find-AnyDeskID
-        if ($anydeskID) {
-            Write-Host "`nAnyDesk ID obtained: $anydeskID" -ForegroundColor Cyan
-            break
-        }
-        $remaining = [math]::Round($timeout - $stopwatch.Elapsed.TotalSeconds)
-        Write-Host "Waiting... ($remaining s remaining)   `r" -NoNewline
-        Start-Sleep -Seconds 3
-    }
-    $stopwatch.Stop()
-
-    if (-not $anydeskID) {
-        $anydeskID = Find-AnyDeskID
-        if (-not $anydeskID) {
-            Write-Warning 'Timed out waiting for a valid AnyDesk ID. The script will continue, but the ID might not be logged correctly.'
-            $anydeskID = 'ID not found'
-        }
-    }
-    
-    Add-Content -Path $logFilePath -Value "AnyDesk ID:`n$($anydeskID)"
-    
-    try {
-        $adExePath = 'C:\ProgramData\AnyDesk\AnyDesk.exe'
-        if (Test-Path $adExePath) {
-            $pass | & $adExePath --set-password
-            if ($LASTEXITCODE -ne 0) {
-                throw "AnyDesk process returned a non-zero exit code: $LASTEXITCODE"
-            }
-            Add-Content -Path $logFilePath -Value "AnyDesk password:`n$pass`n`n"
-        }
-        else {
-            Write-Warning "AnyDesk executable not found at '$adExePath'. Could not set password."
-        }
-    }
-    catch {
-        Write-Warning "Failed to set AnyDesk password: $($_.Exception.Message)"
-        Add-Content -Path $logFilePath -Value "AnyDesk password: NOT SET (Error). Intended password was:`n$pass`n`n"
-    }
-    
-    Remove-Item -Path (Join-Path $PSScriptRoot 'service.conf.lock'), (Join-Path $PSScriptRoot 'system.conf.lock') -Force -ErrorAction SilentlyContinue
 }
 else {
-    Write-Warning 'Skipping AnyDesk installation: Installer not found or downloaded.'
+    Write-Warning "Skipping RuDesktop installation: Script '$ruDesktopScriptFile' not found in '$PSScriptRoot'"
 }
+
+# function Find-AnyDeskID {
+#     $confPath = 'C:\ProgramData\AnyDesk\system.conf'
+#     if (-not (Test-Path $confPath)) { return $null }
+#     try {
+#         $content = Get-Content $confPath -ErrorAction Stop
+#         $idLine = $content | Select-String -Pattern 'ad.anynet.id='
+#         if ($idLine) {
+#             return ($idLine -split '=')[1].Trim()
+#         }
+#     }
+#     catch {
+#         Write-Verbose "Could not read config: $($_.Exception.Message)"
+#     }
+#     return $null
+# }
+# 
+# $anyDeskExe = 'AnyDesk.exe'
+# $anyDeskPath = Join-Path $PSScriptRoot $anyDeskExe
+# 
+# if (-not (Test-Path -Path $anyDeskPath -PathType Leaf)) {
+#     $questionDownloadAnyDesk = [System.Windows.Forms.MessageBox]::Show('AnyDesk installer not found. Download it now?', 'AnyDesk Missing', 'YesNo', [System.Windows.Forms.MessageBoxIcon]::Question)
+#     if ($questionDownloadAnyDesk -eq 'Yes') {
+#         try {
+#             $anyDeskUrl = 'https://download.anydesk.com/AnyDesk.exe'
+#             Invoke-RobustDownload -Uri $anyDeskUrl -OutFile $anyDeskPath -DisplayName 'AnyDesk Installer'
+#         }
+#         catch {
+#             Write-Warning "Error during AnyDesk download process: $($_.Exception.Message)"
+#         }
+#     }
+# }
+# 
+# if (Test-Path -Path $anyDeskPath -PathType Leaf) {
+#     Start-Process $anyDeskPath '--silent --remove' -Wait
+#     Remove-Item -Path "${env:ProgramFiles(x86)}\AnyDesk", 'C:\ProgramData\AnyDesk' -Recurse -Force -ErrorAction SilentlyContinue
+#     Start-Process $anyDeskPath '--install "C:\ProgramData\AnyDesk" --start-with-win --create-shortcuts --create-desktop-icon' -Wait
+#     
+#     $pass = Generate-SecurePassword
+# 
+#     $timeout = 60
+#     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+#     $anydeskID = $null
+#     Write-Host "Waiting for AnyDesk to obtain a valid ID (Timeout: $timeout seconds)..." -ForegroundColor Cyan
+# 
+#     while ($stopwatch.Elapsed.TotalSeconds -lt $timeout) {
+#         $anydeskID = Find-AnyDeskID
+#         if ($anydeskID) {
+#             Write-Host "`nAnyDesk ID obtained: $anydeskID" -ForegroundColor Cyan
+#             break
+#         }
+#         $remaining = [math]::Round($timeout - $stopwatch.Elapsed.TotalSeconds)
+#         Write-Host "Waiting... ($remaining s remaining)   `r" -NoNewline
+#         Start-Sleep -Seconds 3
+#     }
+#     $stopwatch.Stop()
+# 
+#     if (-not $anydeskID) {
+#         $anydeskID = Find-AnyDeskID
+#         if (-not $anydeskID) {
+#             Write-Warning 'Timed out waiting for a valid AnyDesk ID. The script will continue, but the ID might not be logged correctly.'
+#             $anydeskID = 'ID not found'
+#         }
+#     }
+#     
+#     Add-Content -Path $logFilePath -Value "AnyDesk ID:`n$($anydeskID)"
+#     
+#     try {
+#         $adExePath = 'C:\ProgramData\AnyDesk\AnyDesk.exe'
+#         if (Test-Path $adExePath) {
+#             $pass | & $adExePath --set-password
+#             if ($LASTEXITCODE -ne 0) {
+#                 throw "AnyDesk process returned a non-zero exit code: $LASTEXITCODE"
+#             }
+#             Add-Content -Path $logFilePath -Value "AnyDesk password:`n$pass`n`n"
+#         }
+#         else {
+#             Write-Warning "AnyDesk executable not found at '$adExePath'. Could not set password."
+#         }
+#     }
+#     catch {
+#         Write-Warning "Failed to set AnyDesk password: $($_.Exception.Message)"
+#         Add-Content -Path $logFilePath -Value "AnyDesk password: NOT SET (Error). Intended password was:`n$pass`n`n"
+#     }
+#     
+#     Remove-Item -Path (Join-Path $PSScriptRoot 'service.conf.lock'), (Join-Path $PSScriptRoot 'system.conf.lock') -Force -ErrorAction SilentlyContinue
+# }
+# else {
+#     Write-Warning 'Skipping AnyDesk installation: Installer not found or downloaded.'
+# }
 
 $uiTweaksScriptFile = 'ApplyUI-tweaks.ps1'
 $uiTweaksScriptPath = Join-Path $PSScriptRoot $uiTweaksScriptFile
