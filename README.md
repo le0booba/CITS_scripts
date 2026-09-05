@@ -105,7 +105,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 
 ## Благодарности / Thanks to:
 
-Используемые проекты и ресурсы:
+Используемые проекты и ресурсы: / Projects and resources used:
 
 </div>
 
