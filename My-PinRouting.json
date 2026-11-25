@@ -18,7 +18,9 @@
   "RouteOrder": "block-proxy-direct",
   "DirectSites": [
     "geosite:private",
+    "geosite:apple-push",
     "geosite:android-push",
+    "geosite:apple-update",
     "geosite:google-play",
     "geosite:category-ru",
     "geosite:whitelist",
@@ -32,6 +34,7 @@
   "ProxySites": [
     "geosite:category-geoblock-ru",
     "geosite:youtube",
+    "geosite:telegram",
     "geosite:instagram",
     "geosite:twitter"
   ],
