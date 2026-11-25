@@ -1,0 +1,45 @@
+{
+  "Name": "My-PinRouting",
+  "GlobalProxy": "true",
+  "UseChunkFiles": "true",
+  "RemoteDNSType": "DoH3",
+  "RemoteDNSDomain": "https://dns.quad9.net/dns-query",
+  "RemoteDNSIP": "9.9.9.9",
+  "DomesticDNSType": "DoH",
+  "DomesticDNSDomain": "https://common.dot.dns.yandex.net/dns-query",
+  "DomesticDNSIP": "77.88.8.8",
+  "Geoipurl": "https://cdn.jsdelivr.net/gh/pincetgore/PinRouting@ace55231ff60a6b9ddbf24e39a274e137ed97927/geoip.dat",
+  "Geositeurl": "https://cdn.jsdelivr.net/gh/pincetgore/PinRouting@ace55231ff60a6b9ddbf24e39a274e137ed97927/geosite.dat",
+  "LastUpdated": "1795598768",
+  "DnsHosts": {
+    "lkfl2.nalog.ru": "213.24.64.175",
+    "lknpd.nalog.ru": "213.24.64.181"
+  },
+  "RouteOrder": "block-proxy-direct",
+  "DirectSites": [
+    "geosite:private",
+    "geosite:android-push",
+    "geosite:google-play",
+    "geosite:category-ru",
+    "geosite:whitelist",
+    "geosite:domains-geo-detect",
+    "geosite:twitch"
+  ],
+  "DirectIp": [
+    "geoip:private",
+    "geoip:direct"
+  ],
+  "ProxySites": [
+    "geosite:category-geoblock-ru",
+    "geosite:youtube",
+    "geosite:instagram",
+    "geosite:twitter"
+  ],
+  "ProxyIp": [],
+  "BlockSites": [
+    "geosite:category-ads"
+  ],
+  "BlockIp": [],
+  "DomainStrategy": "IPIfNonMatch",
+  "FakeDNS": "false"
+}
